@@ -5,6 +5,21 @@ from receipt_extraction_v2 import collect_candidates, reconcile
 class ExtractionV2Tests(unittest.TestCase):
     def result(self,text): return reconcile(collect_candidates(text,'test'))
 
+    def test_priced_brand_products_do_not_replace_merchant_header(self):
+        for product in ['BP GIFT CARD 20.00', 'Coles Milk $4.00', 'Woolworths Bag 0.25']:
+            text='COAST GARDEN SHOP\n12 Example Street\n'+product+'\nTOTAL 20.00'
+            result=reconcile([collect_candidates(text,e) for e in ['paddle','oxr','unlimited']])
+            self.assertEqual(result['merchant'],'COAST GARDEN SHOP',product)
+
+    def test_brand_in_street_address_does_not_replace_merchant_header(self):
+        text='COAST GARDEN SHOP\n12 Coles Street\nNSW 2000\nTOTAL 20.00'
+        result=reconcile([collect_candidates(text,e) for e in ['paddle','oxr','unlimited']])
+        self.assertEqual(result['merchant'],'COAST GARDEN SHOP')
+
+    def test_real_brand_header_remains_eligible_with_store_number(self):
+        text='BP 1234\n12 Example Street\nTOTAL 20.00'
+        self.assertEqual(self.result(text)['merchant'],'BP')
+
     def test_company_suffix_and_address_locality_are_not_merchant_names(self):
         rows='PTY LTD\n12 Example Street\nTEST BAY\nNSW 2000\nABN 12345678901'
         values=[c['value'] for c in collect_candidates(rows,'paddle')['merchant']]
@@ -105,6 +120,32 @@ class ExtractionV2Tests(unittest.TestCase):
         self.assertEqual(self.result('Invoice Total $36. 02')['total'],36.02)
         self.assertEqual(self.result('TOTAL $1,832.55')['total'],1832.55)
         self.assertEqual(self.result('TOTAL 5,85')['total'],5.85)
+
+    def test_accounting_amount_signs_are_preserved(self):
+        for amount in ['($12.50)', '(12.50)', '($ 12.50)', '-$12.50',
+                       '$-12.50', '$12.50-', '$12.50 CR', 'AUD -$12.50', '-$\u00a012.50']:
+            self.assertEqual(self.result('TOTAL '+amount)['total'],-12.50,amount)
+        self.assertEqual(self.result('TOTAL $12.50')['total'],12.50)
+        for amount in ['($12.50', '$12.50)']:
+            self.assertIsNone(self.result('TOTAL '+amount)['total'],amount)
+
+    def test_grouped_amounts_cannot_silently_lose_leading_digits(self):
+        from receipt_extraction_v2 import _money
+        for separator in [' ', '\u00a0', '\u202f']:
+            self.assertEqual(self.result('TOTAL 1'+separator+'234.56')['total'],1234.56)
+        for amount in ['12 34.56', '1,23.45', '1,234.567', '1.234,56']:
+            self.assertEqual(_money('TOTAL '+amount,permit_noisy=True),[],amount)
+            self.assertIsNone(self.result('TOTAL '+amount)['total'],amount)
+
+    def test_separate_money_fields_remain_separate(self):
+        from receipt_extraction_v2 import _money
+        for text in ['TOTAL $10.00 $20.00', 'TOTAL 10.00 20.00']:
+            self.assertEqual([m['value'] for m in _money(text)],[10.0,20.0],text)
+            self.assertEqual(self.result(text)['total'],20.0,text)
+        text='Total\n(Includes GST:) $0.00 $7.68'
+        self.assertEqual(self.result(text)['total'],7.68)
+        self.assertEqual([m['value'] for m in _money('GST 1.00 TOTAL 11.00')],[1.0,11.0])
+        self.assertEqual([m['value'] for m in _money('TOTAL 10.00 1,23.45')],[10.0])
 
     def test_adjacent_payment_after_total(self):
         self.assertEqual(self.result('Total\nVISA $84.77\nGST Included $1.32')['total'],84.77)
@@ -374,3 +415,4 @@ class ExtractionV2Tests(unittest.TestCase):
 
 
 if __name__=='__main__': unittest.main()
+

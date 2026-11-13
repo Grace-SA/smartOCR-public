@@ -9,8 +9,9 @@ from datetime import date,datetime,timezone
 from decimal import Decimal,InvalidOperation
 import math
 import re
+from receipt_identity import merchant_key
 
-POLICY_VERSION='evidence-v2-2026-11-13'
+POLICY_VERSION='evidence-v3-2026-11-13'
 CORE_FIELDS=('merchant','date','total')
 UNSAFE_FLAGS={'ambiguous_extra_decimal_digit','missing_decimal_separator','shared_legal_entity_abn',
               'generic_or_single_word_header','additional_adjustment_after_total'}
@@ -19,7 +20,7 @@ UNKNOWN_MERCHANTS={'','unknown','unrecognised merchant','unrecognized merchant',
 
 def _key(field,value):
     if value is None:return None
-    if field=='merchant':return re.sub(r'[^a-z0-9]','',str(value).casefold().replace('&','and'))
+    if field=='merchant':return merchant_key(value)
     if field=='total':
         try:return str(Decimal(str(value)).quantize(Decimal('.01')))
         except (InvalidOperation,ValueError):return None
@@ -27,7 +28,7 @@ def _key(field,value):
 
 
 def _valid(field,value):
-    if field=='merchant':return isinstance(value,str) and value.strip().casefold() not in UNKNOWN_MERCHANTS and not re.fullmatch(r'\s*(?:pty\s*)?ltd\s*',value,re.I)
+    if field=='merchant':return isinstance(value,str) and bool(merchant_key(value)) and value.strip().casefold() not in UNKNOWN_MERCHANTS and not re.fullmatch(r'\s*(?:pty\s*)?ltd\s*',value,re.I)
     if field=='date':
         try:return isinstance(value,str) and date.fromisoformat(value)<=date.today()
         except ValueError:return False
@@ -98,3 +99,4 @@ def apply_confidence(record,preserve_user=True):
                               'policy_version':POLICY_VERSION,'at':datetime.now(timezone.utc).isoformat(),
                               'reason':'Independent evidence agrees on all three core fields' if result['auto_confirmable'] else 'Review only the flagged fields'}
     return record
+

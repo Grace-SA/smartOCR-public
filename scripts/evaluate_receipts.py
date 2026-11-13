@@ -5,20 +5,17 @@ Reference values are read ONLY after extraction; never supplied to any model.
 import argparse
 import hashlib
 import json
-import re
 import sys
 from decimal import Decimal
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from receipt_engine import ROOT,read_json,write_json,now
-
-def merchant_key(value):
-    return re.sub(r'[^a-z0-9]','',str(value or '').lower().replace('&',' and '))
+from receipt_identity import merchant_key
 
 def compare(actual,expected,field):
     if expected is None: return None
     if actual is None: return False
-    if field=='merchant': return merchant_key(actual)==merchant_key(expected)
+    if field=='merchant': return merchant_key(expected) is not None and merchant_key(actual)==merchant_key(expected)
     if field=='total': return Decimal(str(actual)).quantize(Decimal('.01'))==Decimal(str(expected)).quantize(Decimal('.01'))
     return actual==expected
 
@@ -67,7 +64,7 @@ def evaluate(manifest_path,references_path,output,require_three=True):
                         'reference_available':sum(r.get('field_matches',{}).get(field) is not None for r in results)} for field in ['merchant','date','total']}
     report={'created_at':now(),'manifest_path':str(Path(manifest_path).relative_to(ROOT)),
             'manifest_sha256':hashlib.sha256(Path(manifest_path).read_bytes()).hexdigest(),
-            'reference_sha256':hashlib.sha256(Path(references_path).read_bytes()).hexdigest(),
+            'scoring_policy':'unicode-merchant-v2-2026-11-13', 'reference_sha256':hashlib.sha256(Path(references_path).read_bytes()).hexdigest(),
             'count':len(manifest),'passed':sum(r['passed'] for r in results),'failed':sum(not r['passed'] for r in results),
             'core_reference_complete':sum(r.get('reference_core_complete',False) for r in results),
             'all_three_available':sum(r.get('all_three_available',False) for r in results),'fields':field_scores,
@@ -83,3 +80,4 @@ def evaluate(manifest_path,references_path,output,require_three=True):
 if __name__=='__main__':
     p=argparse.ArgumentParser(); p.add_argument('--manifest',required=True); p.add_argument('--references',required=True); p.add_argument('--output',required=True);p.add_argument('--allow-partial-engines',action='store_true')
     a=p.parse_args(); evaluate(ROOT/a.manifest,ROOT/a.references,ROOT/a.output,not a.allow_partial_engines)
+

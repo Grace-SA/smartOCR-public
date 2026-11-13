@@ -47,7 +47,7 @@ MERCHANTS = [
     (r'\bintersport\b', 'Intersport'),
 ]
 
-MONEY = re.compile(r'(?<![\w.])(?P<sign>-)?\s*(?:AUD\s*)?\$?\s*(?P<whole>\d{1,3}(?:,\d{3})+|\d{1,7})\s*(?P<sep>[.,])\s*(?P<frac>\d{2})(?!\d)(?P<trailing>-)?', re.I)
+MONEY = re.compile(r'(?<![\w.,])(?P<sign>-)?[^\S\r\n]*(?:AUD[^\S\r\n]*)?\$?[^\S\r\n]*(?P<postsign>-)?[^\S\r\n]*(?P<whole>\d{1,3}(?:,\d{3})+|\d{1,3}(?:[ \u00a0\u202f]\d{3})+|\d{1,7})[^\S\r\n]*(?P<sep>[.,])[^\S\r\n]*(?P<frac>\d{2})(?!\d|[.,]\d)(?P<trailing>-)?', re.I)
 BAD_TOTAL = re.compile(r'\bsub\s*tot(?:al|a[l1i_])\b|\bchange\b|\btender(?:ed)?\b|cash\s*out|sav(?:ed|ings?)|discount|reward|points|surcharge|\b(?:total\s+(?:items|weight|qty|quantity)|item\s+total)\b',re.I)
 PAYMENT = re.compile(r'\b(?:eftpos|eft|visa|mastercard|debit\s*card|credit\s*card|card\s*payment|purchase|amount\s*paid)\b',re.I)
 MERCHANT_DOMAINS = {
@@ -202,19 +202,37 @@ def _rows_from_boxes(lines):
 def _money(text, permit_noisy=False):
     values=[]
     for m in MONEY.finditer(text):
-        whole=m['whole'].replace(',','')
-        negative=bool(m['sign'] or m['trailing'])
+        # Never accept the tail of a malformed/grouped number as a new amount.
+        # The full, valid space-separated thousands grammar is matched above.
+        # A previous complete amount is a separate monetary field, not a
+        # malformed prefix of this one (e.g. a tax/total row with two prices).
+        preceding_end=values[-1]['span'][1] if values else 0
+        if re.search(r'\d[ \t\u00a0\u202f.,]*$',text[preceding_end:m.start()]): continue
+        whole=re.sub(r'[, \u00a0\u202f]','',m['whole'])
+        start,end=m.span()
+        negative=bool(m['sign'] or m['postsign'] or m['trailing'])
+        left=re.search(r'\([^\S\r\n]*$',text[:start])
+        right=re.match(r'[^\S\r\n]*\)',text[end:])
+        # Parentheses are a printed accounting sign, not a positive refund.
+        # Unbalanced wrappers are ambiguous; do not silently drop the sign.
+        if bool(left) != bool(right): continue
+        if left and right:
+            negative=True; start=left.start(); end+=right.end()
+        credit=re.match(r'[^\S\r\n]+CR\b',text[end:],re.I)
+        if credit:
+            negative=True; end+=credit.end()
         value=Decimal(f'{whole}.{m["frac"]}')*(-1 if negative else 1)
         flags=[]
         if re.search(r'\s[.,]|[.,]\s',m.group()): flags.append('decimal_whitespace_normalized')
         if m['sep']==',': flags.append('decimal_comma_normalized')
-        values.append({'value':float(value),'quote':m.group().strip(),'flags':flags,'span':m.span()})
+        values.append({'value':float(value),'quote':text[start:end].strip(),'flags':flags,'span':(start,end)})
     if permit_noisy and not values:
         # Retain ambiguous OCR candidates, never silently truncate a third digit.
-        for m in re.finditer(r'(?<![\d.])\$?\s*(\d{1,6})\s*[.]\s*(\d{2})(\d)(?!\d)',text):
+        for m in re.finditer(r'(?<![\w.,])\$?[^\S\r\n]*(\d{1,6})[^\S\r\n]*[.][^\S\r\n]*(\d{2})(\d)(?!\d|[.,]\d)',text):
+            if re.search(r'\d[ \t\u00a0\u202f.,]*$',text[:m.start()]): continue
             values.append({'value':float(Decimal(f'{m[1]}.{m[2]}')),'quote':m.group().strip(),'flags':['ambiguous_extra_decimal_digit'],'span':m.span()})
         if not values:
-            for m in re.finditer(r'(?<!\d)\$?\s*(\d{1,5})\s+(\d{2})(?!\d)',text):
+            for m in re.finditer(r'(?<![\w.,])\$?[^\S\r\n]*(\d{1,5})[^\S\r\n]+(\d{2})(?!\d|[.,]\d)',text):
                 values.append({'value':float(Decimal(f'{m[1]}.{m[2]}')),'quote':m.group().strip(),'flags':['missing_decimal_separator'],'span':m.span()})
     return values
 
@@ -502,6 +520,10 @@ def collect_candidates(text, engine, lines=None):
             line_start=header.rfind('\n',0,possible.start())+1
             line_end=header.find('\n',possible.end())
             identity_line=header[line_start:line_end if line_end>=0 else len(header)]
+            # A known brand printed in a priced product description or street
+            # address is not the issuer. Keep looking for identity evidence
+            # rather than letting a familiar product replace the true header.
+            if _money(identity_line) or STREET_ADDRESS.search(identity_line): continue
             if re.search(r'\b(?:rewards?|loyalty|points|flybuys)\b',identity_line,re.I): continue
             if re.search(r'\b(?:invoice|abn|ltd|limited)\b',identity_line,re.I) and any(abn in re.sub(r'\D','',identity_line) for abn in SHARED_RETAIL_ABNS): continue
             match=possible; break
@@ -790,3 +812,4 @@ def reconcile(candidates):
             decisions[field]['invoice_balance_checks']=first['invoice_balance_checks']
             decisions[field]['disagreement']=True
     return {field:decision['value'] for field,decision in decisions.items()} | {'fields':decisions,'purpose':'unknown','score_note':'Heuristic evidence scores; not calibrated accuracy probabilities'}
+

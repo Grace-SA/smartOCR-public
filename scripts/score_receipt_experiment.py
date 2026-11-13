@@ -5,15 +5,17 @@ from decimal import Decimal
 import hashlib
 import json
 from pathlib import Path
-import re
 import statistics
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from receipt_identity import merchant_key
 
 
 def key(field, value):
     if value is None or value in ('待识别商家','Unknown merchant'):
         return None
     if field == 'merchant':
-        return re.sub(r'[^a-z0-9]', '', str(value).lower().replace('&','and'))
+        return merchant_key(value)
     if field == 'total':
         return str(Decimal(str(value)).quantize(Decimal('.01')))
     return str(value)
@@ -38,9 +40,9 @@ def score(experiment, reference):
             else:
                 expected = key(field, ref[field])
                 counts[field]['visible_reference'] += 1
-                counts[field]['strict_correct'] += actual == expected
+                counts[field]['strict_correct'] += expected is not None and actual == expected
                 aliases = [expected] + [key(field,a) for a in ref.get('merchant_aliases',[])] if field == 'merchant' else [expected]
-                match[field] = actual in aliases
+                match[field] = actual is not None and actual in aliases
                 counts[field]['accepted_correct'] += match[field]
                 counts[field]['missing'] += actual is None
         if 'elapsed_s' in saved:
@@ -51,7 +53,7 @@ def score(experiment, reference):
                      'elapsed_s':saved.get('elapsed_s')})
     ordered = sorted(times)
     p95 = ordered[min(len(ordered)-1, max(0, __import__('math').ceil(len(ordered)*.95)-1))] if ordered else None
-    return {'reference_sha256':hashlib.sha256(reference.read_bytes()).hexdigest(),
+    return {'scoring_policy':'unicode-merchant-v2-2026-11-13', 'reference_sha256':hashlib.sha256(reference.read_bytes()).hexdigest(),
             'denominator':len(references),'completed':sum(r['state']=='complete' for r in rows),
             'fields':{f:dict(v) for f,v in counts.items()},'complete_reference_count':sum(r['complete_reference'] for r in rows),
             'all_correct':sum(r['all_correct'] for r in rows),
@@ -70,3 +72,4 @@ if __name__ == '__main__':
     result=score(args.experiment,args.reference)
     (args.experiment/'evaluation.json').write_text(json.dumps(result,indent=2))
     print(json.dumps({k:v for k,v in result.items() if k!='rows'},indent=2))
+
