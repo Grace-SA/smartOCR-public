@@ -1,6 +1,10 @@
-# Receipt Desk
+# smartOCR
 
 A local Australian receipt workspace: import photos, extract merchant/date/total with three OCR models, organise categories and tags, review exceptions, export records and generate insights. No account or email integration is required.
+
+Development records: [milestone status](docs/STATUS.md), [engineering journal](docs/DEVELOPMENT.md), [competitor workflow research](docs/COMPETITOR_WORKFLOWS.md), [receipt structure and evaluation](docs/RECEIPT_STRUCTURE.md), [setup and limitations](docs/SETUP.md). Real receipt data and generated evidence stay local and are not included in this source repository.
+
+Latest milestone: [real-receipt pilot results and open issues](docs/PHASE_SUMMARY.md). The fast OCR route remains experimental.
 
 ## Open the workspace
 
@@ -12,7 +16,7 @@ Double-click `start.command` on this Mac and open **http://127.0.0.1:8765/**. Th
 - Open any receipt to inspect the original photo, field evidence, competing readings, confidence reasons and correction history. Every receipt remains editable.
 - **Categories** opens category-specific lists. Select several records to apply a category together. Purpose (work/personal) is separate and requires the user's context.
 - Filter by merchant, category, purpose, date, amount, currency, completeness, tag or confidence. Export **All receipts**, **Current results** or **Selected receipts** as Excel, PDF, CSV or JSON.
-- **Insights** immediately displays computed totals and category, merchant and monthly breakdowns for the chosen scope. **Generate AI insight** adds local model commentary. A model error or timeout does not remove the statistics. Download the same report snapshot as HTML, PDF or JSON.
+- **Insights** immediately displays computed totals and category, merchant and monthly breakdowns for the chosen scope. **Generate AI insight** asks local AI to prioritise applicable actions; numerical and status statements come from the computed records. A model error or timeout does not remove the statistics. Download the same report snapshot as HTML, PDF or JSON.
 
 Refunds retain their signs. Zero and missing amounts remain different. Currencies are summarised separately. Receipt PDF exports contain scoped statistics by category, month and merchant, followed by receipt information. Original photos are excluded from normal exports. Standard JSON contains scoped statistics and receipt information. Raw evidence is retained in the database; internal archival export can include it explicitly.
 

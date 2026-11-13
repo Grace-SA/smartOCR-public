@@ -1,0 +1,5 @@
+# Base local workspace. Model runtimes and the Excel renderer are separate; see docs/SETUP.md.
+Pillow>=10
+reportlab>=4
+pypdf>=4
+openpyxl>=3.1

@@ -3,17 +3,17 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light"><meta name="description" content="Organise, review and export Australian receipts in your local workspace.">
-  <title>Receipt Desk · Your receipts, organised</title>
+  <title>smartOCR · Receipts, organised</title>
   <link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script>
 </head>
 <body>
   <aside class="sidebar">
-    <a href="/" class="brand" aria-label="Receipt Desk home"><span class="brand-mark">R</span><span>Receipt Desk<small>LESS PAPER. MORE CLARITY.</small></span></a>
+    <a href="/" class="brand" aria-label="smartOCR home"><span class="brand-mark">R</span><span>smartOCR<small>LESS PAPER. MORE CLARITY.</small></span></a>
     <div class="workspace"><span class="workspace-avatar">AU</span><div>Australian receipts<small>Local workspace</small></div><span class="local-dot" aria-label="Stored locally"></span></div>
     <p class="nav-label">WORKSPACE</p>
     <nav aria-label="Workspace navigation">
-      <button class="nav-item" id="nav-all" data-view="all" title="All receipts"><span class="nav-icon">▤</span><span class="nav-text">All receipts</span><span class="nav-count" id="nav-total">0</span></button>
-      <button class="nav-item active" id="nav-review" data-view="review" title="Needs review"><span class="nav-icon">◷</span><span class="nav-text">Needs review</span><span class="nav-count" id="nav-pending">0</span></button>
+      <button class="nav-item active" id="nav-all" data-view="all" title="All receipts"><span class="nav-icon">▤</span><span class="nav-text">All receipts</span><span class="nav-count" id="nav-total">0</span></button>
+      <button class="nav-item" id="nav-review" data-view="review" title="Needs review"><span class="nav-icon">◷</span><span class="nav-text">Needs review</span><span class="nav-count" id="nav-pending">0</span></button>
       <button class="nav-item" id="nav-auto" data-view="auto_confirmed" title="Auto-confirmed"><span class="nav-icon">✧</span><span class="nav-text">Auto-confirmed</span><span class="nav-count" id="nav-auto-count">0</span></button>
       <button class="nav-item" id="nav-confirmed" data-view="confirmed" title="Reviewed by you"><span class="nav-icon">✓</span><span class="nav-text">Reviewed by you</span><span class="nav-count" id="nav-done">0</span></button>
       <button class="nav-item" id="nav-categories" data-view="categories" title="Categories"><span class="nav-icon">▦</span><span class="nav-text">Categories</span></button>
@@ -23,9 +23,9 @@
     <div class="sidebar-foot"><span class="local-dot"></span>Stored on this computer<small>No account required</small></div>
   </aside>
   <main>
-    <header class="topbar"><span>Workspace <span class="breadcrumb">/</span> <strong id="breadcrumb">Needs review</strong></span><div><span class="local-pill"><span class="local-dot"></span>Local mode</span><button id="refresh" class="icon-button" aria-label="Refresh receipts" title="Refresh receipts">↻</button></div></header>
+    <header class="topbar"><span>Workspace <span class="breadcrumb">/</span> <strong id="breadcrumb">All receipts</strong></span><div><span class="local-pill"><span class="local-dot"></span>Local mode</span><button id="refresh" class="icon-button" aria-label="Refresh receipts" title="Refresh receipts">↻</button></div></header>
     <div class="content">
-      <section class="page-heading"><div><p class="eyebrow">LESS PAPER. MORE CLARITY.</p><h1 id="page-title">Review the exceptions</h1><p class="subtitle" id="page-subtitle">Your receipts, sorted. Your attention, only where it is needed.</p></div><button class="button primary" id="import-button"><span>＋</span> Import receipts</button></section>
+      <section class="page-heading"><div><p class="eyebrow">LESS PAPER. MORE CLARITY.</p><h1 id="page-title">Your receipt inbox</h1><p class="subtitle" id="page-subtitle">Your receipts, sorted. Your attention, only where it is needed.</p></div><button class="button primary" id="import-button"><span>＋</span> Import receipts</button></section>
       <input type="file" id="file-input" accept="image/*,.heic,.heif" multiple hidden>
       <input type="file" id="camera-input" accept="image/*" capture="environment" hidden>
       <div class="sample-notice" id="sample-notice" hidden><span class="notice-icon">i</span><p><strong>Public sample workspace</strong><span>These receipts come from different sources. They are a workflow test, not one person's spending history. The new blind test uses a separate receipt set and has its own results.</span></p><div class="sample-actions"><span class="sample-count" id="sample-count"></span><span id="blind-quality-link" class="quality-status">Blind test in progress</span></div></div>
@@ -77,17 +77,22 @@
   </main>
   <dialog id="receipt-dialog" class="receipt-dialog">
     <div class="dialog-header"><div><span class="eyebrow">RECEIPT DETAIL</span><h2 id="detail-title">Review receipt</h2></div><button class="icon-button close-button" id="close-detail" aria-label="Close receipt details">×</button></div>
-    <div class="detail-grid"><div class="image-pane"><a id="original-link" target="_blank" rel="noopener"><img id="receipt-image" alt="Original receipt photo"></a><span>Open the photo in a new tab to zoom in</span></div><div class="detail-pane">
+    <div class="detail-grid"><div class="image-pane"><div class="photo-toolbar"><span>Original photo</span><button type="button" id="zoom-photo" class="text-button" aria-pressed="false">Zoom in</button></div><div class="photo-viewport" id="photo-viewport"><a id="original-link" target="_blank" rel="noopener"><img id="receipt-image" alt="Original receipt photo"></a></div><span>Zoom to inspect details, or open the original photo.</span></div><div class="detail-pane">
       <div class="confidence-panel" id="detail-confidence"></div>
       <div id="detail-warnings" class="detail-warnings" hidden></div>
-      <form id="detail-form"><label>Merchant<input name="merchant" maxlength="200" placeholder="Not extracted"></label><div class="form-row"><label>Transaction date<input name="date" type="date"></label><label>Receipt total<input name="total" type="number" step="0.01" placeholder="Not extracted"></label></div><div class="form-row"><label>Currency<select name="currency"><option>AUD</option><option>NZD</option><option>USD</option><option>EUR</option><option>GBP</option><option>CNY</option><option>UNKNOWN</option></select></label><label>Category<select name="category" id="edit-category"></select></label></div><label>Purpose<select name="purpose"><option value="unknown">Not set · needs your context</option><option value="personal">Personal</option><option value="work">Work</option></select></label><label>Tags <small>Generated automatically; edit if needed</small><input name="tags" maxlength="800" placeholder="e.g. groceries, household"></label><label>Notes<textarea name="notes" rows="2" maxlength="1800" placeholder="Add a project, reimbursement purpose or other context"></textarea></label><label class="confirm-check"><input type="checkbox" name="confirmed"><span>I have checked the merchant, date and total</span></label><p class="override-note">You can correct any receipt, including an auto-confirmed one. Corrections preserve the original extraction in its history.</p></form>
+      <form id="detail-form"><label>Merchant<input name="merchant" maxlength="200" placeholder="Not extracted"></label><div class="form-row"><label>Transaction date<input name="date" type="date"></label><label>Receipt total<input name="total" type="number" step="0.01" placeholder="Not extracted"></label></div><details class="optional-details"><summary>Category, tags & optional details</summary><div class="form-row"><label>Currency<select name="currency"><option>AUD</option><option>NZD</option><option>USD</option><option>EUR</option><option>GBP</option><option>CNY</option><option>UNKNOWN</option></select></label><label>Category<select name="category" id="edit-category"></select></label></div><label>Purpose<select name="purpose"><option value="unknown">Not set · needs your context</option><option value="personal">Personal</option><option value="work">Work</option></select></label><label>Tags <small>Generated automatically; edit if needed</small><input name="tags" maxlength="800" placeholder="e.g. groceries, household"></label><label>Notes<textarea name="notes" rows="2" maxlength="1800" placeholder="Add a project, reimbursement purpose or other context"></textarea></label></details><label class="confirm-check"><input type="checkbox" name="confirmed"><span>I have checked the merchant, date and total</span></label><p class="override-note">You can correct any receipt, including an auto-confirmed one. Corrections preserve the original extraction in its history.</p></form>
       <details class="evidence-section" id="history-section"><summary>Changes and original values</summary><div id="detail-history"></div></details>
       <details class="evidence-section" id="field-evidence-section"><summary>Field evidence and competing readings</summary><p class="evidence-note" id="evidence-score-note" hidden>Model agreement is supporting evidence. Candidate ranking scores are not accuracy probabilities.</p><div id="detail-evidence"></div></details>
       <details class="evidence-section" id="engine-evidence-section" hidden><summary>OCR sources and recognised text</summary><p class="engine-overview" id="engine-overview"></p><p class="evidence-note">A complete output has text and did not hit its output limit. It does not guarantee that every field is correct. Views from the same model count once.</p><div id="detail-engines"></div></details>
       <details class="evidence-section" id="legacy-ocr-section"><summary>Recognised text</summary><pre id="detail-ocr"></pre></details>
       <div class="source-detail"><span>Source and traceability</span><a id="detail-source" target="_blank" rel="noopener"></a><small id="detail-license"></small><code id="detail-id"></code></div>
     </div></div>
-    <div class="dialog-footer"><span id="save-hint">Changes stay in this local workspace</span><div><button class="button secondary" id="cancel-detail">Cancel</button><button class="button primary" type="submit" form="detail-form" id="save-detail">Save changes</button></div></div>
+    <div class="dialog-footer"><span id="save-hint">Changes stay in this local workspace</span><div><button class="button secondary" id="cancel-detail">Cancel</button><button class="button secondary" type="submit" form="detail-form" id="save-detail">Save changes</button><button class="button primary" type="submit" form="detail-form" id="save-next">Save & next</button></div></div>
+  </dialog>
+  <dialog id="export-dialog" class="export-preview" aria-labelledby="export-preview-title">
+    <div class="dialog-header"><div><p class="eyebrow">REPORT PREVIEW</p><h2 id="export-preview-title">Export receipt information</h2></div><button class="icon-button" id="close-export" aria-label="Close export preview">×</button></div>
+    <div class="export-preview-body"><p id="export-preview-scope"></p><div id="export-preview-facts" class="export-preview-facts"></div><div id="export-preview-warning" class="export-preview-warning" hidden></div><h3>Included in your export</h3><p id="export-preview-content"></p><p class="export-preview-note">Original photos stay in your workspace. All amounts retain their currency; refunds remain negative.</p></div>
+    <div class="dialog-footer"><span id="export-preview-format"></span><div><button class="button secondary" id="cancel-export">Back</button><button class="button primary" id="confirm-export">Create export</button></div></div>
   </dialog>
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 </body>

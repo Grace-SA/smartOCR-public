@@ -116,7 +116,9 @@ class Handler(BaseHTTPRequestHandler):
             report = read_json(ROOT/'data/sample_report.json',{})
             with LOCK: snapshot = records()
             current = hashlib.sha256(json.dumps(snapshot,sort_keys=True,ensure_ascii=False).encode()).hexdigest()
-            if report: report['stale'] = report.get('fingerprint') != current
+            if report:
+                report['stale'] = (report.get('fingerprint') != current
+                                   or bool(report.get('ai_text') and report.get('ai_method') != 'prioritised_verified_actions'))
             return self.send_json(report)
         if path == '/': file = ROOT/'static/index.html'
         elif path in ['/app.js','/style.css']: file = ROOT/'static'/path[1:]
@@ -173,6 +175,14 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json({'count':len(changed),'records':changed})
             if self.path == '/api/export':
                 with LOCK: data = selected(payload.get('ids'))
+                if 'expected_records' in payload:
+                    fields = ('id','merchant','date','total','currency','category','purpose','tags','notes','status')
+                    expected = payload['expected_records']
+                    actual = [{key: r.get(key) for key in fields} for r in data]
+                    if not isinstance(expected,list) or any(not isinstance(r,dict) for r in expected):
+                        raise ValueError('Invalid export preview')
+                    if sorted(expected,key=lambda r:str(r.get('id'))) != sorted(actual,key=lambda r:str(r.get('id'))):
+                        return self.send_json({'error':'Receipts changed after preview. Close this preview, refresh, and preview again.'},409)
                 fmt = payload.get('format')
                 if fmt not in ['xlsx','pdf','csv','json']: raise ValueError('Unsupported export format')
                 path = ROOT/'output/exports'/f'receipts-{len(data)}-{uuid.uuid4().hex[:8]}.{fmt}'

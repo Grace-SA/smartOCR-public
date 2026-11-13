@@ -50,7 +50,11 @@ def prepare_images(manifest):
         if not output.exists() or previous.get('input_sha256')!=sha(target) or previous.get('output_sha256')!=sha(output): pending.append(target)
         mapping.append({'id':item['id'],'source_path':item['local_path'],'source_sha256':original_sha,'prepared_path':str(output.relative_to(ROOT))})
     if pending:
-        subprocess.run([str(PYTHONS['paddle']),str(EXISTING/'orientation_runner.py'),'--out',str(oriented),*map(str,pending)],env=environment(),check=True,cwd=ROOT)
+        if os.environ.get('SMARTOCR_RESIDENT') == '1':
+            from resident_ocr import request
+            request('orientation', {'images':list(map(str,pending)), 'out':str(oriented)})
+        else:
+            subprocess.run([str(PYTHONS['paddle']),str(EXISTING/'orientation_runner.py'),'--out',str(oriented),*map(str,pending)],env=environment(),check=True,cwd=ROOT)
     return mapping
 
 def run_engine(engine,mapping):
@@ -66,9 +70,14 @@ def run_engine(engine,mapping):
     started=time.monotonic()
     if pending:
         command=[str(PYTHONS[engine]),str(EXISTING/(engine+'_runner.py')),'--out',str(out),*map(str,pending)]
-        with log.open('w') as stream:
-            process=subprocess.run(command,cwd=ROOT,env=environment(),stdout=stream,stderr=subprocess.STDOUT)
-        if process.returncode: raise RuntimeError(f'{engine} failed ({process.returncode}), inspect {log.relative_to(ROOT)}')
+        if engine == 'paddle' and os.environ.get('SMARTOCR_RESIDENT') == '1':
+            from resident_ocr import request
+            metadata = request('paddle', {'images':list(map(str,pending)), 'out':str(out)})
+            log.write_text(json.dumps(metadata))
+        else:
+            with log.open('w') as stream:
+                process=subprocess.run(command,cwd=ROOT,env=environment(),stdout=stream,stderr=subprocess.STDOUT)
+            if process.returncode: raise RuntimeError(f'{engine} failed ({process.returncode}), inspect {log.relative_to(ROOT)}')
     return {'engine':engine,'requested':len(mapping),'processed':len(pending),'cached':len(mapping)-len(pending),'elapsed_s':round(time.monotonic()-started,2),'log':str(log.relative_to(ROOT))}
 
 def normalized_output(engine,record):
@@ -257,10 +266,15 @@ def run_focused_unlimited(mapping):
     command=[str(PYTHONS['unlimited']),str(ROOT/'scripts/run_focused_unlimited.py'),
              '--manifest',str(manifest_path.relative_to(ROOT))]
     started=time.monotonic()
-    with log.open('w') as stream:
-        process=subprocess.run(command,cwd=ROOT,env=environment(),stdout=stream,stderr=subprocess.STDOUT)
-    if process.returncode:
-        raise RuntimeError(f'Focused U2 failed ({process.returncode}), inspect {log.relative_to(ROOT)}')
+    if os.environ.get('SMARTOCR_RESIDENT') == '1':
+        from resident_ocr import request
+        metadata = request('unlimited', {'manifest':str(manifest_path)}, timeout=240)
+        log.write_text(json.dumps(metadata))
+    else:
+        with log.open('w') as stream:
+            process=subprocess.run(command,cwd=ROOT,env=environment(),stdout=stream,stderr=subprocess.STDOUT)
+        if process.returncode:
+            raise RuntimeError(f'Focused U2 failed ({process.returncode}), inspect {log.relative_to(ROOT)}')
     return {'engine':'unlimited','strategy':'focus_then_full_fallback','requested':len(manifest),
             'elapsed_s':round(time.monotonic()-started,2),
             'manifest':str(manifest_path.relative_to(ROOT)),'log':str(log.relative_to(ROOT))}

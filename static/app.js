@@ -1,7 +1,7 @@
 'use strict';
 
 const $ = id => document.getElementById(id);
-const state = {records:[],categories:[],filtered:[],selected:new Set(),view:'review',tableView:'review',detail:null,report:null,reportSignature:null,reportDirty:false,importing:false,processing:false,reportBusy:false,exportBusy:false,bulkBusy:false,loaded:false};
+const state = {records:[],categories:[],filtered:[],selected:new Set(),view:'all',tableView:'all',detail:null,report:null,reportSignature:null,reportDirty:false,importing:false,processing:false,reportBusy:false,exportBusy:false,bulkBusy:false,loaded:false};
 const categoryNames = {'超市与食品':'Groceries & food','餐饮':'Dining','家居与五金':'Home & hardware','健康与药房':'Health & pharmacy','服饰与百货':'Clothing & retail','交通与燃油':'Transport & fuel','电子与办公':'Electronics & office','其他':'Other','待分类':'Uncategorised'};
 const purposeLabels = {unknown:'Not set',personal:'Personal',work:'Work'};
 const statusLabels = {review:'Needs review',auto_confirmed:'Auto-confirmed',confirmed:'Reviewed by you'};
@@ -13,7 +13,7 @@ const qualityLabels = {complete:'Complete text output',empty:'No usable text',tr
 const viewNames = {all:'All receipts',review:'Needs review',auto_confirmed:'Auto-confirmed',confirmed:'Reviewed by you',categories:'Categories',report:'Insights'};
 const viewTitles = {all:'Your receipt inbox',review:'Review the exceptions',auto_confirmed:'Organised automatically',confirmed:'Reviewed by you',categories:'Everything in its place',report:'From receipts to insight'};
 const filterIds = ['search','filter-merchant','filter-category','filter-purpose','filter-start','filter-end','filter-min','filter-max','filter-currency','filter-missing','filter-tag','filter-confidence'];
-let toastTimer,processingTimer,blindTimer;
+let toastTimer,processingTimer,blindTimer,exportSnapshot;
 
 function node(tag,className,text) { const el=document.createElement(tag); if(className)el.className=className; if(text!==undefined)el.textContent=String(text); return el; }
 function englishText(value,fallback='') { const text=String(value || ''); return /[\u3400-\u9fff]/.test(text) ? fallback : text; }
@@ -64,7 +64,7 @@ async function loadRecords(notify=false) {
     $('workflow-copy').textContent=auto?'The system handles strong evidence. You can override any result at any time.':pending?'Uncertain readings stay here. Confirm or correct the exceptions, then export.':'Use categories and insights to organise and export your receipts.';
     $('review-exceptions').textContent=pending?'Open review queue →':'Browse all receipts →';
     render();if(state.view==='categories')renderCategories();if(state.view==='report')renderInsights();
-    if($('receipt-dialog').open){for(const control of $('detail-form').elements)control.disabled=state.processing;$('save-detail').disabled=state.processing;}
+    if($('receipt-dialog').open){for(const control of $('detail-form').elements)control.disabled=state.processing;$('save-detail').disabled=state.processing;$('save-next').disabled=state.processing;}
     if(notify)showToast('Receipts refreshed.');
   } catch(error) {$('table-footer-text').textContent='Unable to load receipts.';$('empty-state').hidden=false;$('empty-title').textContent='Cannot connect to your workspace';$('empty-description').textContent=error.message;$('empty-action').textContent='Try again';showToast(error.message,true);}
 }
@@ -186,22 +186,22 @@ function renderEngineEvidence(record) {
   }
 }
 function openDetail(id) {
-  const record=state.records.find(r=>r.id===id);if(!record)return;state.detail=id;$('detail-title').textContent=merchantLabel(record);$('receipt-image').src=imagePath(record);$('original-link').href=imagePath(record);
+  const record=state.records.find(r=>r.id===id);if(!record)return;state.detail=id;$('photo-viewport').classList.remove('zoomed');$('zoom-photo').textContent='Zoom in';$('zoom-photo').setAttribute('aria-pressed','false');$('save-next').hidden=!needsReview(record);$('save-next').disabled=state.processing;document.querySelector('.optional-details').open=false;$('detail-title').textContent=merchantLabel(record);$('receipt-image').src=imagePath(record);$('original-link').href=imagePath(record);
   const form=$('detail-form');for(const key of ['merchant','date','currency','category','purpose','notes'])form.elements.namedItem(key).value=record[key]||(key==='purpose'?'unknown':'');if(!knownMerchant(record))form.elements.namedItem('merchant').value='';form.elements.namedItem('total').value=validTotal(record)?record.total:'';form.elements.namedItem('tags').value=(record.tags||[]).join(', ');form.elements.namedItem('confirmed').checked=record.status==='confirmed';
   const warnings=[...new Set([...(record.workflow_warnings||[]),...(record.warnings||[])].map(w=>englishText(w)).filter(Boolean))];$('detail-warnings').replaceChildren(...warnings.map(w=>node('p','',w)));$('detail-warnings').hidden=!warnings.length;renderConfidence(record);renderHistory(record);renderFieldEvidence(record);renderEngineEvidence(record);
   const source=safeSourceURL(record.source?.page_url||record.source?.source_page_url||record.source?.source_url),link=$('detail-source');if(source){link.href=source;link.textContent=new URL(source).hostname+' · Open original source ↗';}else{link.removeAttribute('href');link.textContent=record.source?.original_name||'Locally imported photo';}
   $('detail-license').textContent=englishText(record.source?.license||record.source?.licence_status||record.source?.image_license,'Source terms are retained in the exported record.');$('detail-id').textContent=record.id;$('save-hint').textContent=state.processing?'Editing resumes after processing.':'Your changes preserve the original extraction.';for(const control of form.elements)control.disabled=state.processing;$('save-detail').disabled=state.processing;$('receipt-dialog').showModal();
 }
 async function saveDetail(event) {
-  event.preventDefault();if(state.processing)return showToast('Please wait for the current processing job.');const original=state.records.find(r=>r.id===state.detail);if(!original)return;
+  event.preventDefault();const advance=event.submitter?.id==='save-next';const nextId=advance?state.filtered.find(r=>r.id!==state.detail&&needsReview(r))?.id:null;if(state.processing)return showToast('Please wait for the current processing job.');const original=state.records.find(r=>r.id===state.detail);if(!original)return;
   const form=$('detail-form'),get=key=>form.elements.namedItem(key).value.trim();const values={merchant:get('merchant'),date:get('date')||null,total:get('total')===''?null:Number(get('total')),currency:get('currency'),category:get('category'),purpose:get('purpose'),tags:get('tags').split(/[,，]/).map(s=>s.trim()).filter(Boolean),notes:get('notes')};
   const changed=Object.fromEntries(Object.entries(values).filter(([key,value])=>JSON.stringify(value)!==JSON.stringify(key==='merchant'&&!knownMerchant(original)?'':original[key]??(key==='date'||key==='total'?null:key==='tags'?[]:''))));const checked=form.elements.namedItem('confirmed').checked,coreChanged=['merchant','date','total','currency'].some(key=>Object.hasOwn(changed,key));
   if(checked!== (original.status==='confirmed'))changed.status=checked?'confirmed':'review';
   if(coreChanged&&!hasMissing(values))changed.status='confirmed';
   if(changed.status==='confirmed'&&hasMissing(values)){$('save-hint').textContent='Complete the merchant, date and total before confirming.';return;}
-  if(!Object.keys(changed).length){$('receipt-dialog').close();return showToast('No changes to save.');}
-  $('save-detail').disabled=true;$('save-hint').textContent='Saving…';
-  try{await api('/api/update',{id:state.detail,changes:changed});state.reportDirty=true;$('receipt-dialog').close();await loadRecords();showToast(coreChanged?'Your correction is saved. The original reading remains in history.':'Changes saved.');}catch(error){$('save-hint').textContent=error.message;showToast(error.message,true);}finally{$('save-detail').disabled=false;}
+  if(!Object.keys(changed).length){$('receipt-dialog').close();if(advance&&nextId)openDetail(nextId);return showToast('No changes to save.');}
+  $('save-detail').disabled=true;$('save-next').disabled=true;$('save-hint').textContent='Saving…';
+  try{await api('/api/update',{id:state.detail,changes:changed});state.reportDirty=true;$('receipt-dialog').close();await loadRecords();if(advance&&nextId)openDetail(nextId);showToast(coreChanged?'Your correction is saved. The original reading remains in history.':'Changes saved.');}catch(error){$('save-hint').textContent=error.message;showToast(error.message,true);}finally{$('save-detail').disabled=false;$('save-next').disabled=false;}
 }
 function base64File(file) { return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=()=>reject(new Error('Cannot read '+file.name));reader.readAsDataURL(file);}); }
 async function importFiles(list) {
@@ -209,9 +209,26 @@ async function importFiles(list) {
   state.importing=true;$('import-button').disabled=true;$('camera-button').disabled=true;$('import-progress').hidden=false;$('progress-title').textContent='Importing photos';$('progress-detail').textContent='Photos stay on this computer while each receipt is recognised and organised.';$('progress-errors').replaceChildren();$('progress-bar').value=0;$('progress-count').textContent=`0 / ${files.length}`;
   try{const images=[];for(const file of files)images.push({name:file.name,data:await base64File(file)});const job=await api('/api/import',{images});while(true){const p=await api('/api/jobs/'+job.job_id);$('progress-title').textContent=p.state==='done'?'Import complete':'Recognising and organising…';$('progress-count').textContent=`${p.done} / ${p.total}`;$('progress-bar').value=p.done/p.total*100;$('progress-detail').textContent=`${p.imported} imported · ${p.duplicates} duplicate files skipped · ${p.errors.length} unsuccessful`;$('progress-errors').replaceChildren(...p.errors.map(e=>node('li','',`${e.name}: ${englishText(e.error,'Recognition did not complete; the original photo was retained.')}`)));if(p.state==='done'){state.reportDirty=true;await loadRecords();showToast(`Imported ${p.imported} receipts; ${p.duplicates} duplicates skipped.`);break;}await new Promise(r=>setTimeout(r,1500));}}catch(error){$('progress-title').textContent='Import interrupted';$('progress-detail').textContent=error.message;showToast(error.message,true);}finally{state.importing=false;$('import-button').disabled=state.processing;$('camera-button').disabled=state.processing;$('file-input').value='';$('camera-input').value='';}
 }
-async function exportRecords() {
-  const records=scopeRecords(),format=$('export-format').value;if(!records.length)return showToast('There are no receipts in this scope.');state.exportBusy=true;$('export-button').textContent='Exporting…';$('export-result').hidden=true;updateSelection();
-  try{const result=await api('/api/export',{ids:records.map(r=>r.id),format});const a=node('a');a.href=result.url;a.download='';document.body.append(a);a.click();a.remove();const feedback=$('export-result'),link=node('a','text-button','Download again ↗');link.href=result.url;link.download='';feedback.replaceChildren(node('span','',`${result.count} receipts exported as ${format.toUpperCase()} · ${scopeLabel()}`),link);feedback.hidden=false;showToast(`${result.count} receipts exported as ${format.toUpperCase()}.`);}catch(error){showToast('Export failed: '+error.message,true);}finally{state.exportBusy=false;$('export-button').textContent='Export ↓';updateSelection();}
+const exportFields = ['id','merchant','date','total','currency','category','purpose','tags','notes','status'];
+function exportValues(record) { return Object.fromEntries(exportFields.map(key=>[key,record[key]??null])); }
+function exportRecords() {
+  const records=scopeRecords(),format=$('export-format').value;
+  if(!records.length)return showToast('There are no receipts in this scope.');
+  exportSnapshot={records:JSON.parse(JSON.stringify(records.map(exportValues))),format,label:scopeLabel()};
+  const dates=records.map(r=>r.date).filter(Boolean).sort(),facts=$('export-preview-facts');facts.replaceChildren();
+  for(const [label,value] of [['Receipts',String(records.length)],['Recorded total',moneyLabel(records)],['Date coverage',dates.length?`${dateLabel(dates[0])} – ${dateLabel(dates.at(-1))}`:'No dates available'],['Categories',String(new Set(records.map(r=>r.category)).size)]]){const card=node('div');card.append(node('span','',label),node('strong','',value));facts.append(card);}
+  const filters=filterIds.filter(id=>$(id).value).map(id=>`${id.replace('filter-','').replace('search','Search')}: ${$(id).value}`);
+  $('export-preview-scope').textContent=exportSnapshot.label+($('export-scope').value==='filtered'&&filters.length?' · '+filters.join(' · '):'');
+  const review=records.filter(needsReview).length,missing=records.filter(hasMissing).length,warnings=$('export-preview-warning');
+  warnings.hidden=!review&&!missing;warnings.textContent=`${review} receipts still need review. ${missing} have incomplete core fields. These are included and marked; missing amounts are excluded from totals.`;
+  $('export-preview-content').textContent=(['xlsx','pdf','json'].includes(format)?'Scoped totals and category, merchant and monthly summaries, plus receipt details. ':'One row per receipt. ')+(format==='pdf'?'Merchant, date, amount with currency, category, purpose and review status.':'Merchant, date, amount, currency, category, purpose, tags, notes and review status.');
+  $('export-preview-format').textContent={xlsx:'Excel workbook',pdf:'PDF summary',csv:'CSV spreadsheet',json:'JSON data'}[format];
+  $('confirm-export').disabled=false;$('export-dialog').showModal();
+}
+async function createPreviewedExport() {
+  if(!exportSnapshot||state.exportBusy)return;
+  const snapshot=exportSnapshot;state.exportBusy=true;$('confirm-export').disabled=true;$('confirm-export').textContent='Creating…';$('export-result').hidden=true;updateSelection();
+  try{const result=await api('/api/export',{ids:snapshot.records.map(r=>r.id),format:snapshot.format,expected_records:snapshot.records});const a=node('a');a.href=result.url;a.download='';document.body.append(a);a.click();a.remove();const feedback=$('export-result'),link=node('a','text-button','Download again ↗');link.href=result.url;link.download='';feedback.replaceChildren(node('span','',`${result.count} receipts exported as ${snapshot.format.toUpperCase()} · ${snapshot.label}`),link);feedback.hidden=false;$('export-dialog').close();showToast(`${result.count} receipts exported as ${snapshot.format.toUpperCase()}.`);}catch(error){showToast('Export failed: '+error.message,true);}finally{state.exportBusy=false;$('confirm-export').disabled=false;$('confirm-export').textContent='Create export';updateSelection();}
 }
 
 function groupRecords(records,key) { const groups=new Map();for(const r of records){const value=key==='month'?(r.date?.slice(0,7)||'No date'):key==='merchant'?merchantLabel(r):r[key]||(key==='category'?'Uncategorised':'Unknown merchant');if(!groups.has(value))groups.set(value,[]);groups.get(value).push(r);}return [...groups].sort((a,b)=>key==='month'?b[0].localeCompare(a[0]):b[1].length-a[1].length); }
@@ -227,14 +244,14 @@ function renderInsights() {
   if(!count){container.append(node('div','empty-state'));const empty=container.firstElementChild;empty.append(node('h3','','No receipts in this scope'),node('p','','Choose all receipts, change your filters or select records to analyse.'));return;}
   const facts=node('div','report-facts');for(const [title,value,note] of [['Recorded total',moneyLabel(records),`${known}/${count} amounts available · currencies kept separate`],['Ready to use',`${auto+manual} of ${count}`,`${auto} auto-confirmed · ${manual} reviewed by you`],['Needs review',String(review),'Only uncertain extraction goes to manual review'],['Purpose not set',String(records.filter(r=>!r.purpose||r.purpose==='unknown').length),'Work or personal purpose needs your context']]){const card=node('div','report-fact');card.append(node('span','',title),node('strong','',value),node('small','',note));facts.append(card);}container.append(facts);
   const report=state.report,matches=reportMatchesScope(report,records),stale=state.reportDirty||report?.stale||records.some(r=>matches&&r.updated_at&&report?.created_at&&new Date(r.updated_at)>new Date(report.created_at));
-  const ai=node('section','insight-ai'),aiHeader=node('div','insight-ai-heading');aiHeader.append(node('h3','','AI organisation insight'));
+  const ai=node('section','insight-ai'),aiHeader=node('div','insight-ai-heading');aiHeader.append(node('h3','','Suggested next steps'));
   const generate=node('button','button secondary',state.reportBusy?'Generating…':matches&&report?.ai_text?'Refresh AI insight':'Generate AI insight');generate.disabled=state.reportBusy;generate.addEventListener('click',generateReport);aiHeader.append(generate);ai.append(aiHeader);
   const aiText=matches&&!stale?englishText(report?.ai_text):'';
   if(state.reportBusy)ai.append(node('p','report-prose','Analysing the selected records. Your exact totals remain visible above.'));
   else if(matches&&stale){ai.append(node('p','report-warning','This insight is out of date. Receipt records changed after its snapshot. Generate a new insight before sharing it.'),node('p','evidence-note','The figures above are live. Previous AI commentary and report downloads are hidden until refreshed.'));$('report-engine').textContent='Update needed';}
-  else if(aiText){ai.append(node('div','report-prose',aiText));$('report-engine').textContent='AI insight available';const created=report.created_at?new Date(report.created_at).toLocaleString('en-AU',{hour12:false}):'';ai.append(node('small','evidence-note',`Generated ${created}${stale?' · Records changed; refresh this insight.':''}`));}
+  else if(aiText){ai.append(node('div','report-prose',aiText));$('report-engine').textContent='AI-prioritised actions';const created=report.created_at?new Date(report.created_at).toLocaleString('en-AU',{hour12:false}):'';ai.append(node('small','evidence-note',`Generated ${created}. AI prioritises the actions; totals are calculated from your records.`));}
   else if(matches&&(report?.ai_status==='unavailable'||report?.ai_unavailable_reason)){ai.append(node('p','report-warning','AI commentary is unavailable for this run. Your calculated statistics and exports are still ready.'),node('p','evidence-note',englishText(report.ai_unavailable_reason,'You can retry generation at any time.')));const narrative=englishText(report.narrative);if(narrative)ai.append(node('p','report-prose',narrative));}
-  else ai.append(node('p','evidence-note','Generate a short explanation and suggested next steps for exactly this scope. The calculations below are ready now.'));
+  else ai.append(node('p','evidence-note','Let AI prioritise suggested next steps for this scope. The calculations below are ready now.'));
   container.append(ai);
   if(matches&&!stale&&!state.reportBusy){for(const [id,url] of [['report-download',report.downloads?.json||report.download_url],['report-read',report.downloads?.html],['report-pdf',report.downloads?.pdf]])if(url){$(id).hidden=false;$(id).href=url;}}
   const categories=groupRecords(records,'category'),categorySection=node('section','report-section');categorySection.append(node('h3','','Category breakdown'),node('p','section-caption','Open a category to inspect its receipts or export that group.'));
@@ -242,7 +259,7 @@ function renderInsights() {
   const tables=node('div','insight-tables');for(const [title,key] of [['Top merchants','merchant'],['Receipt dates by month','month']]){const section=node('section','report-section');section.append(node('h3','',title));const table=node('table','insight-table'),head=node('thead'),tr=node('tr');for(const name of [key==='month'?'Month':'Merchant','Receipts','Recorded total'])tr.append(node('th','',name));head.append(tr);table.append(head);const body=node('tbody');for(const [name,items] of groupRecords(records,key).slice(0,8)){const row=node('tr');row.append(node('td','',name),node('td','',items.length),node('td','',moneyLabel(items)));body.append(row);}table.append(body);section.append(table);tables.append(section);}container.append(tables);
   const actions=node('section','report-section');actions.append(node('h3','','What to do next'));if(review)actions.append(makeAction(`${review} receipts need review`,'Check uncertain fields against their original photos.','Review receipts →',()=>setView('review')));
   const unknownPurpose=records.filter(r=>!r.purpose||r.purpose==='unknown').length;if(unknownPurpose)actions.append(makeAction(`${unknownPurpose} purposes not set`,'Add work or personal context when it is useful to your filing.','Filter these receipts →',()=>{setView('all');clearFilters();$('filter-purpose').value='unknown';render();}));
-  actions.append(makeAction('Export this scope',`${count} receipts · Excel, PDF with originals, CSV or JSON. Use the scope control below to change the selection.`,'Export current format ↓',exportRecords));container.append(actions);
+  actions.append(makeAction('Export this scope',`${count} receipts · Excel, PDF summary, CSV or JSON. Use the scope control below to change the selection.`,'Export current format ↓',exportRecords));container.append(actions);
   const limits=node('div','report-limitations');if(records.some(r=>r.source?.kind==='public_sample'))limits.append(node('p','','Public samples come from different people and periods. These charts describe this test collection, not personal spending habits.'));limits.append(node('p','','Evidence confidence and categorisation are separate. Every field remains editable, and original images and correction history are retained.'));container.append(limits);
 }
 async function loadSampleReport() {const recordsAtRequest=[...state.records];try{const report=await api('/api/sample-report');if(report.summary&&!state.report&&!state.reportBusy){state.report=report;state.reportSignature=signatureForReport(report,recordsAtRequest);refreshReportStaleness();if(state.view==='report')renderInsights();}}catch{/* Live statistics remain usable if a saved report is absent. */}}
@@ -266,3 +283,7 @@ $('empty-action').addEventListener('click',()=>{const action=$('empty-action').t
 const drop=$('drop-zone');drop.addEventListener('click',()=>$('file-input').click());drop.addEventListener('keydown',e=>{if(['Enter',' '].includes(e.key)){e.preventDefault();$('file-input').click();}});for(const name of ['dragenter','dragover'])drop.addEventListener(name,e=>{e.preventDefault();drop.classList.add('dragover');});for(const name of ['dragleave','drop'])drop.addEventListener(name,e=>{e.preventDefault();drop.classList.remove('dragover');});drop.addEventListener('drop',e=>importFiles(e.dataTransfer.files));window.addEventListener('dragover',e=>e.preventDefault());window.addEventListener('drop',e=>{if(!drop.contains(e.target))e.preventDefault();});
 loadRecords();
 refreshBlindStatus();
+
+$('confirm-export').addEventListener('click',createPreviewedExport);
+for(const id of ['close-export','cancel-export'])$(id).addEventListener('click',()=>$('export-dialog').close());
+$('zoom-photo').addEventListener('click',()=>{const zoomed=$('photo-viewport').classList.toggle('zoomed');$('zoom-photo').textContent=zoomed?'Fit photo':'Zoom in';$('zoom-photo').setAttribute('aria-pressed',String(zoomed));});
