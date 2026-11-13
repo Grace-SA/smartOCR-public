@@ -26,13 +26,16 @@ def score(experiment, reference):
     for ref in references:
         path = experiment/(ref['id']+'.json')
         saved = json.loads(path.read_text()) if path.exists() else {'state':'not_processed','record':{}}
-        prediction = saved.get('record', {})
+        # A failed job may retain partial/debug fields. They are not a
+        # completed extraction and cannot inflate any accuracy denominator.
+        prediction = saved.get('record', {}) if saved['state']=='complete' else {}
         match = {}
         for field in counts:
             actual = key(field, prediction.get(field))
             if ref[field] is None:
                 counts[field]['unreadable_reference'] += 1
-                counts[field]['correct_abstentions'] += actual is None
+                counts[field]['correct_abstentions'] += actual is None and saved['state']=='complete'
+                counts[field]['unprocessed_controls'] += saved['state']!='complete'
                 counts[field]['unsupported_populated'] += actual is not None
                 match[field] = None
             else:
@@ -57,7 +60,7 @@ def score(experiment, reference):
             'all_correct':sum(r['all_correct'] for r in rows),
             'automatic_count':sum(r['automatic'] for r in rows),
             'automatic_nonmatches':sum(r['automatic'] and not r['all_correct'] for r in rows),
-            'timing_s':{'sum':sum(times),'median':statistics.median(times) if times else None,'p95_nearest_rank':p95},
+            'timing_s':{'measured_count':len(times),'sum':sum(times) if times else None,'median':statistics.median(times) if times else None,'p95_nearest_rank':p95},
             'limitations':'Small deliberately selected development pilot; assistant visual references, not independent human gold. Missing-reference fields are reported as abstention controls, never counted as correct extraction. Merchant aliases were fixed before inference.',
             'rows':rows}
 

@@ -15,6 +15,7 @@ from receipt_engine import ROOT, CATEGORIES, build_report, now, read_json, summa
 from receipt_pipeline import extract_ensemble_record
 from exports import create_export, create_report_export
 from receipt_workflow import prepare_record, update_record, validate_changes
+from local_visual_review import apply_local_visual_review
 
 DATABASE = Path(os.environ.get('RECEIPT_DATA_FILE',str(ROOT/'data/receipts.json'))).resolve()
 PROCESSING = DATABASE.with_name('.processing')
@@ -56,6 +57,7 @@ def import_images(images, job_id):
             except Exception:
                 if suffix not in ['.heic','.heif']: raise
             record = prepare_record(extract_ensemble_record(path, {'kind':'user_import','page_url':'','license':'User supplied','original_name':image.get('name','')}, allow_detail_review=False))
+            record = prepare_record(apply_local_visual_review(record))
             with LOCK:
                 data = records(); data.append(record); write_json(DATABASE,data)
             job['imported'] += 1

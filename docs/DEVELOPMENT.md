@@ -2,6 +2,25 @@
 
 This is the versioned engineering journal. Product copy is English. Real receipt images, annotations and OCR output remain local and are excluded from Git. Each milestone records changes, validation, problems and next steps. A measured sample result is not a population accuracy claim.
 
+## 2026-11-13 Accuracy and semantic evidence stage
+
+User priority: correct merchant/date/gross amount extraction, with a 100% acceptance target. No confidence threshold was relaxed to make the dashboard look more successful.
+
+- Preserved original pilot first attempts, old blind100 freeze and the live 100-receipt database including the user's correction.
+- Fixed tax-versus-gross roles, settled balances, joined item-total labels, accounting table columns, terminal SALE blocks, invoice headings, supplier/recipient roles and corner-address confusion.
+- Added source-backed brand normalization and excluded promotional/generic outlet headings as supplier identity.
+- Annotated 27 additional private development photos before inference and froze their reference/manifest hashes. Full-image inspection exposed incorrect merchant grouping in the initial split; recorded an audit and excluded one reserved-group photo before OCR. Reserved 49-photo evaluation remains pending, and group independence is not yet established.
+- Downloaded and checksum-verified a pinned local Qwen3-VL model. Ran 27 new and 12 original-pilot images without OCR text or reference answers in the prompts. Retained raw responses and failures; the model sometimes invents absent fields despite explicit instructions.
+- Added separate cache-replay, visual-reconciliation and scoring tools. Failed/unprocessed outputs cannot become correct abstentions or accurate records. AI disagreement does not silently create an automatic confirmation.
+- Added a 180-second-per-image budget to new full-engine subprocess calls after observing a roughly 320-second unusable OXR output. Existing first-attempt timing is retained; simultaneous local jobs prevent an isolated speed comparison.
+- Re-read the unresolved handwritten total from a traceable crop with Paddle and Unlimited OCR. Neither crop reading recovered it. A review-only visual proposal can instead be checked against two independently stated accounting equations (net + tax and deposit + remainder), but arithmetic alone never creates a missing total.
+
+Final expanded replay: merchant 25/25 with predeclared aliases (22/25 exact), date 24/24, total 25/25; 20/20 complete records; seven automatic confirmations, no reference nonmatches. Six of seven missing-field controls abstain correctly; payment-provider identity remains unresolved. Original-pilot replay: 10/10 complete records. A fresh actual visual-worker smoke completed in 21.67 seconds and retained review status. The app database and old blind100 freeze remain unchanged.
+
+Verification: **206 Python tests and six Node tests passed**; diff whitespace check passed. A fresh local model worker read the real smoke image successfully.
+
+Measurements, limitations and remaining failures: [ACCURACY_STAGE.md](ACCURACY_STAGE.md). This stage does not establish universal 100% accuracy or independent human-gold accuracy.
+
 ## 2026-11-13 Baseline before real receipt development
 
 ### Completed

@@ -76,7 +76,13 @@ def run_engine(engine,mapping):
             log.write_text(json.dumps(metadata))
         else:
             with log.open('w') as stream:
-                process=subprocess.run(command,cwd=ROOT,env=environment(),stdout=stream,stderr=subprocess.STDOUT)
+                # A capped/repeating decoder must not hold a batch indefinitely.
+                # Timeout is an unavailable engine, never successful extraction.
+                budget=180*len(pending)
+                try:
+                    process=subprocess.run(command,cwd=ROOT,env=environment(),stdout=stream,stderr=subprocess.STDOUT,timeout=budget)
+                except subprocess.TimeoutExpired as exc:
+                    raise RuntimeError(f'{engine} exceeded {budget}s budget; inspect {log.relative_to(ROOT)}') from exc
             if process.returncode: raise RuntimeError(f'{engine} failed ({process.returncode}), inspect {log.relative_to(ROOT)}')
     return {'engine':engine,'requested':len(mapping),'processed':len(pending),'cached':len(mapping)-len(pending),'elapsed_s':round(time.monotonic()-started,2),'log':str(log.relative_to(ROOT))}
 

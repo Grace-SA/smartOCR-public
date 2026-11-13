@@ -10,11 +10,11 @@ from decimal import Decimal,InvalidOperation
 import math
 import re
 
-POLICY_VERSION='evidence-v2-2026-11-13'
+POLICY_VERSION='evidence-v3-2026-11-13'
 CORE_FIELDS=('merchant','date','total')
 UNSAFE_FLAGS={'ambiguous_extra_decimal_digit','missing_decimal_separator','shared_legal_entity_abn',
-              'generic_or_single_word_header','additional_adjustment_after_total'}
-UNKNOWN_MERCHANTS={'','unknown','unrecognised merchant','unrecognized merchant','待识别商家','待确认'}
+              'generic_or_single_word_header','additional_adjustment_after_total','external_legal_identity_requires_review'}
+UNKNOWN_MERCHANTS={'','unknown','unknown merchant','unrecognised merchant','unrecognized merchant','待识别商家','待确认'}
 
 
 def _key(field,value):

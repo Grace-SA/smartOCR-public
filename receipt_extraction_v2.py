@@ -12,6 +12,8 @@ from collections import Counter, defaultdict
 from datetime import date
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from receipt_item_arithmetic import collect_counted_subtotal_check
+from receipt_table_totals import accounting_column_lines
+from merchant_identity import verified_supplier_candidates
 
 MONTHS = {name: index for index, name in enumerate(
     ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'], 1)}
@@ -45,6 +47,9 @@ MERCHANTS = [
     (r'\b7[ -]?eleven\b', '7-Eleven'),
     (r'\brebel\s*sport\b|\brebelsport\.com', 'Rebel Sport'),
     (r'\bintersport\b', 'Intersport'),
+    (r'\bharvey\s+norman\b', 'Harvey Norman'),
+    (r'\bsupercheap\s+auto\b', 'Supercheap Auto'),
+    (r'\bauto\s+one\b', 'Auto One'),
 ]
 
 MONEY = re.compile(r'(?<![\w.])(?P<sign>-)?\s*(?:AUD\s*)?\$?\s*(?P<whole>\d{1,3}(?:,\d{3})+|\d{1,7})\s*(?P<sep>[.,])\s*(?P<frac>\d{2})(?!\d)(?P<trailing>-)?', re.I)
@@ -57,6 +62,8 @@ MERCHANT_DOMAINS = {
     'chemistwarehouse.com.au':'Chemist Warehouse', 'harrisfarm.com.au':'Harris Farm',
     'iga.com.au':'IGA', 'bws.com.au':'BWS',
     'rebelsport.com.au':'Rebel Sport', 'intersport.com.au':'Intersport',
+    'harveynorman.com.au':'Harvey Norman', 'supercheapauto.com.au':'Supercheap Auto',
+    'autoone.com.au':'Auto One',
 }
 # Official identity sources for recently added registry entries. Extraction
 # still requires a matching identity on the receipt itself.
@@ -64,13 +71,16 @@ MERCHANT_REFERENCES = {
     'BWS':'https://bws.com.au/',
     'Rebel Sport':'https://www.rebelsport.com.au/',
     'Intersport':'https://intersport.com.au/',
+    'Harvey Norman':'https://www.harveynorman.com.au/about-harvey-norman-stores',
+    'Supercheap Auto':'https://www.supercheapauto.com.au/customer-service/faq.html',
+    'Auto One':'https://www.autoone.com.au/pages/about-us',
 }
 # These digits identify a legal entity shared by multiple retail banners,
 # including Woolworths and BIG W. Repeated OCR of the number cannot establish
 # which trading brand issued an otherwise unidentified receipt.
 SHARED_RETAIL_ABNS = {'88000014675'}
 GENERIC_LOGO_WORDS = set('local fresh fruit deli market supermarket shop store food foods restaurant cafe bakery butcher butchers pharmacy hardware welcome thanks thank you value prices low best quality service tax invoice receipt'.split())
-STREET_ADDRESS = re.compile(r'^\s*\d+[A-Za-z]?(?:[-/]\d+[A-Za-z]?)?\s+.+\b(?:street|st|road|rd|parade|pde|avenue|ave|drive|dr|lane|ln|highway|hwy|crescent|cres|boulevard|blvd|terrace|tce)\b',re.I)
+STREET_ADDRESS = re.compile(r'^\s*(?:\d+[A-Za-z]?(?:[-/]\d+[A-Za-z]?)?\s+|(?:cnr|corner|chr)\.?\s+).+\b(?:street|sts?|roads?|rd|parade|pde|avenue|ave|drive|dr|lane|ln|highway|hwy|crescent|cres|boulevard|blvd|terrace|tce)\b',re.I)
 MERCHANT_MENTION_EXCLUSION = re.compile(r'price\s*match|competitor|comments?|price\s*guarantee|\bcoupon\b|\bvoucher\b|\bredeem\b',re.I)
 COLES_SLOGAN_REFERENCE = 'https://www.colesgroup.com.au/news/2020/media-releases/?page=coles-unveils-new-campaign-value-the-australian-way'
 
@@ -227,14 +237,18 @@ def _role(line):
     if re.search(r'\bchange\b',normalized,re.I): return 'change'
     if re.search(r'\bcash\s*out\b',normalized,re.I): return 'cashout'
     if re.search(r'tender|^\s*cash\b',normalized,re.I): return 'tendered'
-    if re.search(r'\bbalance\b',normalized,re.I): return 'balance'
+    if re.search(r'\bbalance\b|\bremaining\s+(?:inv(?:oice)?\s+)?amount\b|\bamount\s+due\s+on\s+(?:this|the)\s+invoice\b',normalized,re.I): return 'balance'
+    # HTML cells can concatenate a product code directly with "Item Total".
+    # Its semantic role does not become a document total without whitespace.
+    if re.search(r'item\s+total\b',normalized,re.I): return 'other'
     if BAD_TOTAL.search(normalized): return 'other'
     if '%' in normalized and re.search(r'\btotal\b',normalized,re.I): return 'other'
-    if re.search(r'\bincluded\s+in\s+(?:the\s+)?total\b|\btotal\s+includes\s+gst\b',normalized,re.I): return 'tax'
+    if re.search(r'\bincluded\s+in\s+(?:the\s+)?total\b|\btotal\s+includes\s+(?:gst|tax\s+of)\b',normalized,re.I): return 'tax'
     # Remove inclusion wording, but not a row giving GST INCLUDED IN TOTAL.
-    stripped=re.sub(r'\b(?:incl(?:udes|uding)?|inc|including)\.?\s*gst\b','',normalized,flags=re.I)
+    stripped=re.sub(r'\b(?:incl(?:udes|uding)?|inc|including)\.?\s*(?:gst|tax)\b','',normalized,flags=re.I)
     if re.search(r'\bgst\b|\btax\b',stripped,re.I) and not re.search(r'^\s*(?:grand\s+|invoice\s+)?total\b.*\b(?:incl|includes|including)',normalized,re.I): return 'tax'
     if re.search(r'\btotal\b',stripped,re.I) and PAYMENT.search(stripped): return 'settlement'
+    if re.search(r'\bamount\s+paid\b|\bpayments?\s+applied\b',stripped,re.I): return 'settlement'
     if re.search(r'\b(?:total|amount\s*(?:due|paid)|balance\s*due)\b',stripped,re.I):
         if re.search(r'\bqty\b|\bunit\s*price\b|\bea\s+total',stripped,re.I): return 'other'
         return 'total'
@@ -391,7 +405,9 @@ def collect_candidates(text, engine, lines=None):
     line boxes. Engine names may include a variant after ':'; such variants do
     not count as independent engines in consensus.
     """
-    text=_plain_text(str(text or ''))
+    raw_text=str(text or '')
+    accounting_rows=accounting_column_lines(raw_text)
+    text=_plain_text(raw_text)
     result={'date':_dates(text,engine),'total':[],'merchant':[],'supporting_amounts':[],'diagnostics':[],'arithmetic_checks':[],'merchant_logo_evidence':[],'invoice_balance_checks':[]}
     raw_rows=[line.strip() for line in text.splitlines() if line.strip()]
     geometry=_rows_from_boxes(lines)
@@ -406,6 +422,7 @@ def collect_candidates(text, engine, lines=None):
             tolerance=.02 if max(abs(v) for v in box)<=1.01 else 1
             if 0<=box[0]<=tolerance: edge_clipped_total=True
     variants=[('raw',raw_rows)]
+    if accounting_rows: variants.append(('accounting_columns',accounting_rows))
     if geometry and geometry!=raw_rows: variants.append(('geometry',geometry))
     terminal_receipt=bool(re.search(r'\b(?:TID|MID|RRN|MERCH(?:ANT)?\s*ID|TERMINAL)\b',text,re.I) and re.search(r'\b(?:APPROVED|ACCOUNT\s*TYPE|DEBIT|SAVINGS)\b',text,re.I))
     for variant,rows in variants:
@@ -413,10 +430,11 @@ def collect_candidates(text, engine, lines=None):
         if arithmetic: result['arithmetic_checks'].append(arithmetic)
         subtotal_arithmetic=collect_counted_subtotal_check(rows,engine,variant)
         if subtotal_arithmetic: result['arithmetic_checks'].append(subtotal_arithmetic)
-        if variant=='geometry': result['date'].extend(_dates('\n'.join(rows),engine))
+        if variant in ('geometry','accounting_columns'): result['date'].extend(_dates('\n'.join(rows),engine))
         for index,line in enumerate(rows):
             role=_role(line)
-            if terminal_receipt and re.fullmatch(r'SALE\s*:?',line,re.I): role='payment'
+            terminal_sale=bool(terminal_receipt and re.fullmatch(r'SALE\s*:?(?:\s+AUD)?(?:\s+\$?\s*-?\s*\d+(?:,\d{3})*[.,]\d{2})?\s*',line,re.I))
+            if terminal_sale: role='payment'
             # The embedded bank slip's TOTAL AUD is a settlement observation,
             # separate from the retail invoice's printed purchase total.
             before_total='\n'.join(rows[max(0,index-8):index])
@@ -428,7 +446,7 @@ def collect_candidates(text, engine, lines=None):
             # Terminal slips often print PURCHASE/SALE, AUD and the amount in
             # separate boxes. Join only a bare currency amount in the same
             # small payment block; do not cross another accounting label.
-            if terminal_receipt and role=='payment' and not amounts and re.fullmatch(r'(?:PURCHASE|SALE)\s*:?',line,re.I):
+            if terminal_receipt and role=='payment' and not amounts and re.fullmatch(r'(?:PURCHASE|SALE)\s*:?(?:\s+AUD)?',line,re.I):
                 for direction in (1,-1):
                     for offset in (1,2,3):
                         neighbor=index+direction*offset
@@ -439,7 +457,9 @@ def collect_candidates(text, engine, lines=None):
                         if len(prices)==1 and re.fullmatch(r'(?:AUD\s*)?\$?\s*-?\s*\d+(?:,\d{3})*[.,]\d{2}',adjacent,re.I):
                             preceding=rows[neighbor-1] if neighbor>0 else ''
                             belongs_to_other_label=_role(preceding) in ['tax','subtotal','total','cashout','tendered','change','balance']
-                            backward_currency=bool(re.match(r'AUD\b',adjacent,re.I) or re.fullmatch(r'AUD',preceding,re.I))
+                            between=rows[neighbor+1:index] if direction==-1 else []
+                            backward_currency=bool(re.match(r'AUD\b',adjacent,re.I) or re.fullmatch(r'AUD',preceding,re.I)
+                                                   or any(re.fullmatch(r'AUD',r,re.I) for r in between))
                             if not belongs_to_other_label and (direction==1 or backward_currency):
                                 result['supporting_amounts'].append(_candidate(prices[0]['value'],line+'\n'+adjacent,engine,88,kind='payment',source_variant=variant,line_index=index,flags=['terminal_payment_block']))
                         break
@@ -556,10 +576,56 @@ def collect_candidates(text, engine, lines=None):
                 result['merchant'].append(_candidate(name,match.group(),engine,65 if shared else 95,kind='merchant_registry',context=context,flags=['legal_entity_abn_fallback']+(['shared_legal_entity_abn'] if shared else [])))
                 break
     if not result['merchant']:
+        result['merchant'].extend(verified_supplier_candidates(text,engine))
+    if not result['merchant'] and terminal_receipt:
+        # A retail header may contain only a suburb. An attached bank slip
+        # identifies its merchant immediately below the EFTPOS bank heading,
+        # before the MID/TID block. Require a business descriptor, not locality.
+        for i,row in enumerate(raw_rows):
+            if not re.fullmatch(r'(?:[A-Z][A-Z ]{1,30}\s+)?EFTPOS(?:\s+FROM\s+[A-Z ]+)?',row,re.I): continue
+            if i+1>=len(raw_rows): continue
+            name=raw_rows[i+1];block='\n'.join(raw_rows[i+2:i+8])
+            if not (re.search(r'\bMID\s*:',block,re.I) and re.search(r'\bTID\s*:',block,re.I)): continue
+            if not re.search(r'\b(?:newsag(?:ent|ency)?|store|shop|hotel|pharmacy|restaurant|cafe|pty\s+ltd)\b',name,re.I): continue
+            if STREET_ADDRESS.search(name) or _money(name) or re.search(r'\b(?:bank|eftpos|customer|terminal|account)\b|\d{3}|\bAU\s*$',name,re.I): continue
+            result['merchant'].append(_candidate(name,row+'\n'+name,engine,94,kind='merchant_terminal_header',
+                flags=['business_header_context','terminal_merchant_before_mid_tid']))
+    if not result['merchant']:
+        # Handwritten invoice forms distinguish the supplier FROM block from
+        # the recipient TO block. Require the form's supplier ABN anchor.
+        for i,row in enumerate(raw_rows[:40]):
+            supplier=re.fullmatch(r'FROM\s*:?\s+(.+)',row,re.I)
+            if not supplier: continue
+            following=' '.join(raw_rows[i+1:i+3])
+            if not re.search(r'ABN\s*\(?\s*(?:of\s*)?(?:supplier|supplie)',following,re.I): continue
+            name=supplier[1].strip()
+            if len(_merchant_words(name))<2 or len(name)>85 or _money(name) or STREET_ADDRESS.search(name): continue
+            result['merchant'].append(_candidate(name,row,engine,92,kind='merchant_header',
+                flags=['explicit_supplier_from_block','business_header_context']))
+    if not result['merchant']:
+        # A supplier's legal name can be a second document header beside a
+        # terminal slip. Use the printed name + suffix + invoice-title anchor,
+        # not the first global OCR lines or a bank/provider name.
+        for i,row in enumerate(raw_rows):
+            if not re.fullmatch(r'(?:PTY\.?\s+)?(?:LTD\.?|LIMITED)',row,re.I): continue
+            following=raw_rows[i+1:i+4]
+            if not any(re.fullmatch(r'(?:TAX\s+)?INVOICE(?:\s*/\s*RECEIPT)?',r,re.I) for r in following): continue
+            before=raw_rows[max(0,i-3):i]
+            if any(re.search(r'\b(?:bill\s*to|ship\s*to|sold\s*to|customer\s*:)',r,re.I) for r in before): continue
+            names=[r for r in before if not re.fullmatch(r'CUSTOMER\s+COPY',r,re.I)]
+            if not names: continue
+            name=names[-1]
+            if len(_merchant_words(name))<2 or len(name)>85 or _money(name) or STREET_ADDRESS.search(name): continue
+            if re.search(r'\b(?:tax|invoice|abn|account|eftpos|bank|payment|customer|total|receipt)\b|[:@]|\d{3}',name,re.I): continue
+            value=name+' '+row
+            result['merchant'].append(_candidate(value,name+'\n'+row,engine,92,kind='merchant_header',
+                flags=['business_header_context','business_name_descriptor','printed_legal_name_before_invoice_title']))
+    if not result['merchant']:
         # Keep a header candidate at review confidence instead of asserting an address as merchant.
         repetitions=Counter(raw_rows)
         for line_index,original_line in enumerate(raw_rows[:20]):
-            if not result['merchant'] and re.fullmatch(r'\W*(?:TAX\s*)?INVOICE\W*',original_line,re.I): continue
+            if re.match(r'^\s*(?:bill\s*to|ship\s*to|sold\s*to|customer|recipient)\s*:',original_line,re.I): break
+            if not result['merchant'] and re.fullmatch(r'\W*(?:TAX\s*)?(?:INVOICE|RECEIPT)(?:\s*[/&]\s*(?:INVOICE|RECEIPT))?\W*',original_line,re.I): continue
             if re.search(r'^\s*(?:TAX\s*INVOICE|ABN\b|DESCRIPTION\b|ITEMS?\b|QTY\b)',original_line,re.I): break
             line=re.sub(r'^\s*DUPLICATE\s+','',original_line,flags=re.I)
             if line.upper()=='DUPLICATE' or (len(line)<16 and repetitions[original_line]>=3): continue
@@ -578,7 +644,7 @@ def collect_candidates(text, engine, lines=None):
             next_address=bool(next_rows and STREET_ADDRESS.search(next_rows[0]))
             terminal_address=terminal_receipt and bool(next_rows and re.search(r'\b(?:NSW|VIC|QLD|WA|SA|TAS|ACT|NT)\s+\d{4}\b',next_rows[0],re.I))
             anchored=bool(re.search(r'\bABN\b|TAX\s*INVOICE|\bPH(?:ONE)?\b|\bSTREET\b|\bROAD\b',nearby,re.I)) or any(STREET_ADDRESS.search(r) for r in next_rows) or terminal_address
-            generic=bool(re.match(r'^(?:thank\s*you|thanks|welcome|save\b|value\b|low\s*prices?\b)',line,re.I))
+            generic=bool(re.match(r'^(?:thank\s*you|thanks|welcome|save\b|value\b|low\s*prices?\b|where\s+.+\b(?:costs?|prices?)\b)',line,re.I) or re.fullmatch(r'(?:main|default)\s+(?:outlet|store)',line,re.I))
             one_word=len(re.findall(r'[A-Za-z]+',line))<2
             located = [(str(row.get('text',row.get('LineText',''))).strip(), _box(row)) for row in (lines or []) if isinstance(row,dict)]
             located = [(quote,box) for quote,box in located if box and box[2]>0 and box[3]>0]

@@ -2,6 +2,12 @@
 
 The local workflow and source repository are usable. A faster production extraction route has **not** been established. The real-photo pilot exposed merchant/structure failures that were hidden by the earlier tuned development set.
 
+## Subsequent accuracy stage
+
+The new 27-photo development comparison improves all three fields from 10/20 complete receipts on the first attempt to 20/20 after revised parsing and grounded local image review. The original pilot retains 10/10 complete receipts. Merchant matching uses predeclared aliases; one missing-merchant control remains unresolved. These are tuned development results, not an independent 100-photo pass.
+
+Uncertain live imports now use the local visual helper when installed, with changed fields kept for review and existing human corrections preserved. A fresh runtime smoke passed in 21.67 seconds for the visual step alone. The full three-model expanded first attempt took 46.5 minutes for 27 photos under shared workload, so production throughput remains unresolved. Details: [accuracy stage report](ACCURACY_STAGE.md).
+
 ## Deliverables
 
 - Private source repository: [Grace-SA/smartOCR](https://github.com/Grace-SA/smartOCR). Receipt photos, annotations, OCR output and generated files remain local and ignored by Git.

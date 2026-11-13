@@ -41,3 +41,22 @@ node --check static/app.js
 ```
 
 Network-listening API tests need loopback permission. Model benchmarks need the local model environments and Metal access. Browser checks must use an isolated test database for writes; preserve user overrides in the real workspace.
+# Accuracy experiments
+
+The live import path still uses the three-engine evidence pipeline. When its verified local model is installed, Qwen3-VL reviews uncertain imports offline. It is not a replacement for OCR evidence or an automatic-confirmation authority. Set `SMARTOCR_VISUAL_REVIEW=0` to disable this optional step. See [ACCURACY_STAGE.md](ACCURACY_STAGE.md) for results and limitations.
+
+The visual experiment needs the local MLX-VLM environment and verified pinned model directory `data/models/qwen3-vl-8b-4bit`, including `smartocr-model-provenance.json`. The image-only manifest and prepared, hash-verified orientation cache must already exist. Receipts, reference answers and weights are private local inputs, not repository assets.
+
+```sh
+# Run with the Python environment containing MLX-VLM on the Mac.
+python scripts/benchmark_visual_receipts.py --manifest data/private-manifest.json --out data/experiments/visual-first
+
+# Run with the app Python environment; these operations start no OCR models.
+python scripts/replay_receipt_experiment.py --source data/experiments/three-model-first --out data/experiments/parser-replay
+python scripts/reconcile_visual_experiment.py --ocr data/experiments/parser-replay --visual data/experiments/visual-first --out data/experiments/reconciled
+
+# References enter only the separate scoring process.
+python scripts/score_receipt_experiment.py data/experiments/reconciled --reference data/private-reference.json
+```
+
+Use a new output directory for every experiment. Preserve failures and first attempts. Cache replays do not measure end-to-end latency; shared-workload model runs are not isolated speed benchmarks. Do not report a development replay as a new blind test.
