@@ -1,0 +1,23 @@
+# Local receipts, annotations, model outputs and exports must never be committed.
+/data/
+/output/
+/research/
+/private/
+.build/
+node_modules
+__pycache__/
+*.py[cod]
+.venv/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+*.zip
+*.pdf
+*.xlsx
+*.jpg
+*.jpeg
+*.png
+*.heic
+*.tiff

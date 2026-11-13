@@ -1,0 +1,361 @@
+{
+  "synthetic_fixture": true,
+  "fixture_notice": "SYNTHETIC DATA FOR EXPORT TESTS ONLY. NO REAL BLIND-TEST RESULTS.",
+  "created_at": "2000-01-01T00:00:00Z",
+  "target_count": 100,
+  "selected_count": 6,
+  "tested_count": 6,
+  "complete": false,
+  "manifest_sha256": "synthetic-manifest",
+  "reference_sha256": "synthetic-references",
+  "extraction_freeze_sha256": "synthetic-freeze",
+  "confidence_policy_sha256": "synthetic-policy",
+  "fields": {
+    "merchant": {
+      "correct": 4,
+      "reference_available": 6,
+      "missing_reference": 0,
+      "accuracy": 0.6666666666666666
+    },
+    "date": {
+      "correct": 3,
+      "reference_available": 6,
+      "missing_reference": 0,
+      "accuracy": 0.5
+    },
+    "total": {
+      "correct": 4,
+      "reference_available": 5,
+      "missing_reference": 1,
+      "accuracy": 0.8
+    }
+  },
+  "all_core_correct": 2,
+  "complete_reference_count": 5,
+  "processing_success_count": 5,
+  "all_three_complete_count": 4,
+  "automatic": {
+    "count": 3,
+    "coverage": 0.5,
+    "fully_scorable": 2,
+    "correct": 1,
+    "false_confirmations": [
+      "synthetic_002"
+    ],
+    "unverified_confirmations": [
+      "synthetic_003"
+    ],
+    "precision": 0.5
+  },
+  "timing_seconds": {
+    "total": 280,
+    "mean": 46.666666666666664,
+    "median": 35,
+    "p90": 120,
+    "p95": 120,
+    "maximum": 120
+  },
+  "merchant_distribution": {
+    "Synthetic Market": 1,
+    "Synthetic Cafe": 1,
+    "Synthetic Taxi": 1,
+    "Synthetic Hardware": 1,
+    "Synthetic Timeout": 1,
+    "Synthetic Refund": 1
+  },
+  "criterion": "Synthetic fixture uses deliberately prescribed match flags for export tests.",
+  "limitations": [
+    "SYNTHETIC FIXTURE. None of these are real receipts or model results."
+  ],
+  "results": [
+    {
+      "id": "synthetic_001",
+      "image_path": "synthetic-fixture/no-image-1.png",
+      "image_sha256": "synthetic-not-an-image-sha",
+      "prediction_sha256": "synthetic-not-a-prediction-sha",
+      "run_sha256": "synthetic-not-a-run-sha",
+      "source_url": null,
+      "expected": {
+        "merchant": "Synthetic Market",
+        "date": "2024-01-15",
+        "total": "12.30"
+      },
+      "actual": {
+        "merchant": "Synthetic Market",
+        "date": "2024-01-15",
+        "total": 12.3
+      },
+      "field_matches": {
+        "merchant": true,
+        "date": true,
+        "total": true
+      },
+      "reference_complete": true,
+      "reference_uncertainty": [],
+      "core_correct": true,
+      "all_three_complete": true,
+      "status": "auto_confirmed",
+      "auto_confirmed": true,
+      "confidence": {
+        "score": 100,
+        "reasons": []
+      },
+      "wall_seconds": 10,
+      "pipeline_seconds": 8,
+      "model_timing": {
+        "paddle": {
+          "recognition_ms": 800
+        },
+        "unlimited": {
+          "elapsed_seconds": 2
+        },
+        "oxr": {
+          "elapsed_seconds": 3
+        }
+      },
+      "returncode": 0,
+      "timed_out": false,
+      "processing_success": true
+    },
+    {
+      "id": "synthetic_002",
+      "image_path": "synthetic-fixture/no-image-2.png",
+      "image_sha256": "synthetic-not-an-image-sha",
+      "prediction_sha256": "synthetic-not-a-prediction-sha",
+      "run_sha256": "synthetic-not-a-run-sha",
+      "source_url": null,
+      "expected": {
+        "merchant": "Synthetic Cafe",
+        "date": "2024-01-15",
+        "total": "12.30"
+      },
+      "actual": {
+        "merchant": "Different synthetic cafe",
+        "date": "2024-01-16",
+        "total": 12.3
+      },
+      "field_matches": {
+        "merchant": false,
+        "date": false,
+        "total": true
+      },
+      "reference_complete": true,
+      "reference_uncertainty": [],
+      "core_correct": false,
+      "all_three_complete": true,
+      "status": "auto_confirmed",
+      "auto_confirmed": true,
+      "confidence": {
+        "score": 100,
+        "reasons": []
+      },
+      "wall_seconds": 20,
+      "pipeline_seconds": 18,
+      "model_timing": {
+        "paddle": {
+          "recognition_ms": 800
+        },
+        "unlimited": {
+          "elapsed_seconds": 2
+        },
+        "oxr": {
+          "elapsed_seconds": 3
+        }
+      },
+      "returncode": 0,
+      "timed_out": false,
+      "processing_success": true
+    },
+    {
+      "id": "synthetic_003",
+      "image_path": "synthetic-fixture/no-image-3.png",
+      "image_sha256": "synthetic-not-an-image-sha",
+      "prediction_sha256": "synthetic-not-a-prediction-sha",
+      "run_sha256": "synthetic-not-a-run-sha",
+      "source_url": null,
+      "expected": {
+        "merchant": "Synthetic Taxi",
+        "date": "2024-01-15",
+        "total": null
+      },
+      "actual": {
+        "merchant": "Synthetic Taxi",
+        "date": "2024-01-15",
+        "total": 12.3
+      },
+      "field_matches": {
+        "merchant": true,
+        "date": true,
+        "total": null
+      },
+      "reference_complete": false,
+      "reference_uncertainty": [
+        "SYNTHETIC missing reference amount; used to test denominators."
+      ],
+      "core_correct": false,
+      "all_three_complete": true,
+      "status": "auto_confirmed",
+      "auto_confirmed": true,
+      "confidence": {
+        "score": 100,
+        "reasons": []
+      },
+      "wall_seconds": 30,
+      "pipeline_seconds": 25,
+      "model_timing": {
+        "paddle": {
+          "recognition_ms": 800
+        },
+        "unlimited": {
+          "elapsed_seconds": 2
+        },
+        "oxr": {
+          "elapsed_seconds": 3
+        }
+      },
+      "returncode": 0,
+      "timed_out": false,
+      "processing_success": true
+    },
+    {
+      "id": "synthetic_004",
+      "image_path": "synthetic-fixture/no-image-4.png",
+      "image_sha256": "synthetic-not-an-image-sha",
+      "prediction_sha256": "synthetic-not-a-prediction-sha",
+      "run_sha256": "synthetic-not-a-run-sha",
+      "source_url": null,
+      "expected": {
+        "merchant": "Synthetic Hardware",
+        "date": "2024-01-15",
+        "total": "12.30"
+      },
+      "actual": {
+        "merchant": "Synthetic Hardware",
+        "date": "2024-01-15",
+        "total": 12.3
+      },
+      "field_matches": {
+        "merchant": true,
+        "date": true,
+        "total": true
+      },
+      "reference_complete": true,
+      "reference_uncertainty": [],
+      "core_correct": true,
+      "all_three_complete": true,
+      "status": "review",
+      "auto_confirmed": false,
+      "confidence": {
+        "score": 65,
+        "reasons": [
+          "Synthetic disagreement."
+        ]
+      },
+      "wall_seconds": 40,
+      "pipeline_seconds": 35,
+      "model_timing": {
+        "paddle": {
+          "recognition_ms": 800
+        },
+        "unlimited": {
+          "elapsed_seconds": 2
+        },
+        "oxr": {
+          "elapsed_seconds": 3
+        }
+      },
+      "returncode": 0,
+      "timed_out": false,
+      "processing_success": true
+    },
+    {
+      "id": "synthetic_005",
+      "image_path": "synthetic-fixture/no-image-5.png",
+      "image_sha256": "synthetic-not-an-image-sha",
+      "prediction_sha256": null,
+      "run_sha256": "synthetic-not-a-run-sha",
+      "source_url": null,
+      "expected": {
+        "merchant": "Synthetic Timeout",
+        "date": "2024-01-15",
+        "total": "12.30"
+      },
+      "actual": {
+        "merchant": null,
+        "date": null,
+        "total": null
+      },
+      "field_matches": {
+        "merchant": false,
+        "date": false,
+        "total": false
+      },
+      "reference_complete": true,
+      "reference_uncertainty": [],
+      "core_correct": false,
+      "all_three_complete": false,
+      "status": "processing_failed",
+      "auto_confirmed": false,
+      "confidence": null,
+      "wall_seconds": 120,
+      "pipeline_seconds": null,
+      "model_timing": {},
+      "returncode": 124,
+      "timed_out": true,
+      "processing_success": false
+    },
+    {
+      "id": "synthetic_006",
+      "image_path": "synthetic-fixture/no-image-6.png",
+      "image_sha256": "synthetic-not-an-image-sha",
+      "prediction_sha256": "synthetic-not-a-prediction-sha",
+      "run_sha256": "synthetic-not-a-run-sha",
+      "source_url": null,
+      "expected": {
+        "merchant": "Synthetic Refund",
+        "date": "2024-01-15",
+        "total": "0.00"
+      },
+      "actual": {
+        "merchant": "Synthetic Refund",
+        "date": "2024-01-16",
+        "total": 0
+      },
+      "field_matches": {
+        "merchant": true,
+        "date": false,
+        "total": true
+      },
+      "reference_complete": true,
+      "reference_uncertainty": [
+        "SYNTHETIC zero amount is valid."
+      ],
+      "core_correct": false,
+      "all_three_complete": false,
+      "status": "review",
+      "auto_confirmed": false,
+      "confidence": {
+        "score": 65,
+        "reasons": [
+          "Synthetic disagreement."
+        ]
+      },
+      "wall_seconds": 60,
+      "pipeline_seconds": null,
+      "model_timing": {
+        "paddle": {
+          "recognition_ms": 800
+        },
+        "unlimited": {
+          "elapsed_seconds": 2
+        },
+        "oxr": {
+          "elapsed_seconds": 3
+        }
+      },
+      "returncode": 0,
+      "timed_out": false,
+      "processing_success": true
+    }
+  ]
+}

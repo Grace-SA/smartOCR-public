@@ -1,0 +1,31 @@
+import { homedir } from 'node:os';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+const { chromium } = await import(pathToFileURL(process.env.RECEIPT_PLAYWRIGHT || homedir() + '/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/index.mjs').href);
+import assert from 'node:assert/strict';
+const base=process.argv[2];
+if(!/^http:\/\/127\.0\.0\.1:\d+$/.test(base))throw new Error('local test URL required');
+const browser=await chromium.launch({headless:true,executablePath:process.env.RECEIPT_CHROMIUM || homedir() + '/Library/Caches/ms-playwright/chromium-1248/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing'});
+try {
+  const page=await browser.newPage({viewport:{width:1440,height:1000}});
+  page.setDefaultTimeout(15000);
+  await page.goto(base);
+  await page.waitForFunction(()=>Number(document.querySelector('#nav-total').textContent)>=100);
+  await page.locator('#search').fill('au_web_foi_coles_p25');
+  await page.locator('tbody tr').first().click();
+  await page.locator('#receipt-dialog').waitFor({state:'visible'});
+  await page.locator('[name="notes"]').fill('Browser QA: note-only edit');
+  const firstSave=page.waitForResponse(r=>r.url().endsWith('/api/update')&&r.status()===200);
+  await page.locator('#save-detail').click();
+  const saved=await (await firstSave).json();
+  assert.equal(saved.record.field_evidence.category.method,'ai_suggestion');
+  assert.deepEqual(saved.record.edit_history.at(-1).after,{notes:'Browser QA: note-only edit'});
+  await page.locator('#receipt-dialog').waitFor({state:'hidden'});
+  await page.locator('tbody tr').first().click();
+  await page.locator('[name="confirmed"]').check();
+  const secondSave=page.waitForResponse(r=>r.url().endsWith('/api/update')&&r.status()===200);
+  await page.locator('#save-detail').click();
+  assert.equal((await (await secondSave).json()).record.status,'confirmed');
+  await page.reload();
+  await page.waitForFunction(()=>document.querySelector('#nav-done').textContent==='1');
+  console.log(JSON.stringify({passed:true,checks:['note-only edit preserves AI origin','confirmation updates status','saved edit survives refresh']}));
+} finally {await browser.close()}
