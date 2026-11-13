@@ -24,6 +24,8 @@ class TrainingPreparationTests(unittest.TestCase):
                    'sha256': hashlib.sha256(path.read_bytes()).hexdigest(),
                    'group_review': 'human_verified', 'merchant_group': f'm{i}',
                    'template_group': f't{i}', 'transaction_group': f'x{i}'}
+            if split == 'holdout':
+                row['exposure'] = 'thumbnail_only'
             if split != 'holdout':
                 row.update(label_review='human_verified',
                            labels={'merchant': '测试店铺', 'date': '2026-01-01', 'total': '-12.50'},
@@ -48,6 +50,8 @@ class TrainingPreparationTests(unittest.TestCase):
         report = self.run_prepare()
         self.assertFalse(report['training_executed'])
         self.assertFalse(report['accuracy_measured'])
+        self.assertFalse(report['unseen_holdout_verified'])
+        self.assertEqual(report['holdout_exposure_declared'], {'thumbnail_only': 1})
         out = self.root / 'data/prepared'
         self.assertEqual(sorted(p.name for p in out.iterdir()), ['preparation.json', 'train.jsonl', 'validation.jsonl'])
         training = [json.loads(line) for line in (out / 'train.jsonl').read_text().splitlines()]
@@ -81,6 +85,10 @@ class TrainingPreparationTests(unittest.TestCase):
 
     def test_holdout_labels_never_enter_preparation(self):
         self.rejects(lambda rows: rows[4].update(labels={'merchant': 'secret answer'}))
+
+    def test_holdout_exposure_must_be_declared(self):
+        self.rejects(lambda rows: rows[4].pop('exposure'))
+        self.rejects(lambda rows: rows[4].update(exposure='fully blind guaranteed'))
 
     def test_requires_nonempty_split_and_controls(self):
         self.rejects(lambda rows: rows.pop())
