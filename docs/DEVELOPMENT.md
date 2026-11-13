@@ -2,6 +2,32 @@
 
 This is the versioned engineering journal. Product copy is English. Real receipt images, annotations and OCR output remain local and are excluded from Git. Each milestone records changes, validation, problems and next steps. A measured sample result is not a population accuracy claim.
 
+## 2026-11-13 Focused review and scoped reporting revision
+
+Completed after accuracy-stage commit `5bc8e49` was pushed to the private GitHub repository. This revision applies the documented competitor workflow findings; it does not change OCR thresholds or reclassify the existing workspace to inflate automatic coverage.
+
+### Changes
+
+- Receipt rows now identify the uncertain fields. Review highlights only those fields and explains missing values, competing readings, single-source evidence and image-model proposals. Technical scores and source details remain available in disclosures; a human confirmation takes visual priority over the old model score.
+- Added previous/skip navigation, queue position and **Confirm & next**. An unchanged but checked receipt can be confirmed in one action. Skipping never confirms; unsaved edits require saving or explicit discard. Saving prevents navigation and further edits until the result returns.
+- Added common date presets, including the Australian July-to-June financial year, removable active filters and a filter for the specific field needing review.
+- The export dock shows scoped counts and totals. Preview can include only ready records; the empty case prevents export. Export requests retain a separate snapshot and the existing backend stale-data check.
+- View insights opens the computed scope immediately. AI prioritisation remains a separate optional action, with no change to the factual-report safeguards.
+- Reduced desktop spacing and fixed navigation overflow at a 319px mobile viewport. Product copy remains English. Blind-test completion is labelled as processed samples, not an accuracy score.
+
+### Verification and retained evidence
+
+- **206 Python tests, 11 Node tests and JavaScript syntax check passed.** New tests cover financial-year boundaries, month rollover/leap years, field-specific attention, human override and ready-only export with missing/invalid values, zero and refunds.
+- Browser QA used a separate copy of the 100-record database, served on port 8769. Confirmation without editing reduced review count from 30 to 29; skipping left it unchanged. Unsaved text could not be lost by closing; explicit discard restored the stored merchant.
+- A subsequent correction on that copy preserved status and history: the saved amount changed by one cent while the prior value remained in the edit history. The main database stayed byte-for-byte unchanged.
+- Financial-year filtering selected two records totalling AUD 49.95. Excel export completed through the browser; read-back verified exactly two receipt rows and the same total. The live insights view showed the same scope, merchants and amount.
+- Ready-only preview selected 71 records after the test confirmation, excluding 29. Applying it to the review-only scope selected zero and disabled export. These are UI QA counts, not new extraction-accuracy results.
+- Desktop 1280×720 and mobile 319px layouts were inspected. Mobile document width equals viewport width after the navigation fix; review actions remain visible while the photo/form scrolls.
+
+### Remaining work
+
+Independent annotation audit and untouched extraction evaluation, calibrated automatic precision and fresh end-to-end speed measurements remain open. This UX revision does not resolve the payment-provider identity control or prove production-level accuracy. AI insights still prioritise verified workflow guidance; unrestricted spending advice is not implemented.
+
 ## 2026-11-13 Accuracy and semantic evidence stage
 
 User priority: correct merchant/date/gross amount extraction, with a 100% acceptance target. No confidence threshold was relaxed to make the dashboard look more successful.

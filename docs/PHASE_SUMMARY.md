@@ -8,6 +8,12 @@ The new 27-photo development comparison improves all three fields from 10/20 com
 
 Uncertain live imports now use the local visual helper when installed, with changed fields kept for review and existing human corrections preserved. A fresh runtime smoke passed in 21.67 seconds for the visual step alone. The full three-model expanded first attempt took 46.5 minutes for 27 photos under shared workload, so production throughput remains unresolved. Details: [accuracy stage report](ACCURACY_STAGE.md).
 
+## Subsequent product and interaction revision
+
+After pushing the accuracy stage, a second revision makes exception review field-specific, adds confirm/skip navigation and protects unsaved edits. Date presets include Australian financial years; removable filters and ready-only export preview make report scope explicit. The insights action opens computed statistics immediately, with AI guidance generated separately.
+
+Verification: 206 Python tests and 11 Node tests passed. Browser checks on a separate data copy covered confirmation, skipping, discard, preserved overrides, empty ready-only export and a two-receipt AUD 49.95 Excel/insights scope. Desktop and 319px mobile layouts were checked; main data remains unchanged. These workflow checks do not extend the extraction accuracy claims above.
+
 ## Deliverables
 
 - Private source repository: [Grace-SA/smartOCR](https://github.com/Grace-SA/smartOCR). Receipt photos, annotations, OCR output and generated files remain local and ignored by Git.

@@ -123,7 +123,7 @@ class Handler(BaseHTTPRequestHandler):
                                    or bool(report.get('ai_text') and report.get('ai_method') != 'prioritised_verified_actions'))
             return self.send_json(report)
         if path == '/': file = ROOT/'static/index.html'
-        elif path in ['/app.js','/style.css']: file = ROOT/'static'/path[1:]
+        elif path in ['/app.js','/workflow.js','/style.css']: file = ROOT/'static'/path[1:]
         elif path == '/output/quality/index.html': file = ROOT/'output/quality/index.html'
         elif path in ['/research/validation100_manifest.json','/research/sample_100_manifest.json',
                       '/research/validation100_reference_changes.json',

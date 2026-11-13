@@ -10,7 +10,7 @@
 | Live image assistance | Enabled for uncertain imports when local model is installed | Source hash checks, review-only changed fields, immutable model attempts, bounded worker, preserved overrides; fresh runtime smoke passed |
 | Processing speed | Production target unresolved | Expanded three-model first attempt: 46.5 minutes for 27 photos under shared workload; cache replay has no fresh runtime |
 | Competitor workflow research | Documented workflow review complete | Smart Receipts, Expensify, Dext official help/AU listings; native paid-app usability trial not performed |
-| Revised interaction | Implemented and locally checked | Desktop/mobile, photo zoom, save-and-next, collapsed optional fields, scoped preview, stale-export rejection, override preservation |
+| Revised interaction | Second revision implemented and checked | Field-focused review, confirm/skip navigation, unsaved-edit protection, AU financial-year filters, ready-only export preview and immediate scoped insights; 1280px desktop / 319px mobile QA |
 | Untouched holdout evaluation | Pending | Frozen code/settings, first attempts, honest denominators |
 
 Known issues: incomplete merchant/logo semantics; missing final totals; conservative review routing; repeated model loading; local environment coupling. Confidence is an evidence index, not a calibrated probability.

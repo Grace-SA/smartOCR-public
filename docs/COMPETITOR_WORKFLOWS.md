@@ -38,3 +38,9 @@ Sources: [Smart Receipts workflow](https://help.smartreceipts.co/en/articles/154
 - Complete the same tasks at a narrow mobile width with keyboard-accessible controls.
 
 Deferred: native automatic capture, multi-document segmentation/stitching, accounts, email ingestion, cloud sync, reimbursement approvals and subscription flows. A prototype cannot imply these already work.
+
+## Second implementation pass — 13 November 2026
+
+Applied the documented lessons to a clearer exception queue: field-specific prompts, one-action confirmation and continued review, skip without confirmation, and explicit discard for unsaved changes. Reporting now includes common date periods, Australian financial years, removable filter chips and optional exclusion of unreviewed records. The sticky action bar shows the current count and amount; insights are useful before AI generation.
+
+Verified on an isolated database copy: unchanged-receipt confirmation, skip, unsaved-edit protection, override history, scoped Excel read-back and matching computed insights. A ready-only preview with zero qualifying records prevents export. Desktop and 319px mobile review controls were inspected, and a narrow-screen navigation overflow was fixed. This is implementation QA, not a new competitor usability study.
