@@ -1,20 +1,28 @@
 import unittest
+import tempfile
+from pathlib import Path
 from receipt_engine import parse_date, merged_lines, summarize, extract_record, is_total_label, is_refund_transaction, ROOT
 
 class EngineTests(unittest.TestCase):
+    def setUp(self):
+        self._temp = tempfile.TemporaryDirectory(prefix="synthetic-engine-", dir=ROOT)
+        self.addCleanup(self._temp.cleanup)
+        self.image = Path(self._temp.name)/"synthetic-receipt.jpg"
+        # OCR is supplied explicitly; these bytes are used only for hashing.
+        self.image.write_bytes(b"synthetic receipt hash fixture")
     def test_australian_date_and_impossible_date(self):
         self.assertEqual(parse_date('Date 09/12/2025')[0][0],'2025-12-09')
         self.assertEqual(parse_date('Date 31/02/2025'),[])
         self.assertEqual(parse_date('18 MAY 2026')[0][0],'2026-05-18')
         self.assertEqual(parse_date('23.JAN.24')[0][0],'2024-01-23')
     def test_change_is_never_transaction_total(self):
-        # Uses real image bytes only for hashing; OCR is a focused edge-case fixture.
-        image = ROOT/'data/raw/web/au_web_foi_coles_p25.jpg'
+        # Synthetic bytes isolate the parser from private receipt datasets.
+        image = self.image
         ocr={'lines':[{'text':'TOTAL CHANGE 0.00','x':.1,'y':.5,'height':.02}], 'elapsed_ms':0}
         result=extract_record(image,ocr=ocr)
         self.assertIsNone(result['total'])
     def test_coles_total_for_items_is_not_item_count(self):
-        image = ROOT/'data/raw/web/au_web_foi_coles_p25.jpg'
+        image = self.image
         ocr={'lines':[{'text':'Total for 6 items: $37.62','x':.1,'y':.5,'height':.02}], 'elapsed_ms':0}
         self.assertEqual(extract_record(image,ocr=ocr)['total'],37.62)
     def test_tax_inclusive_total_but_not_tax_amount(self):
